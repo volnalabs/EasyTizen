@@ -60,8 +60,8 @@ jobs:
       matrix:
         include:
           - { name: Windows-x64, os: windows-latest, node: win-x64, target: "", bundles: nsis }
-          - { name: macOS-ARM64, os: macos-latest, node: darwin-arm64, target: aarch64-apple-darwin, bundles: dmg }
-          - { name: macOS-Intel, os: macos-15-intel, node: darwin-x64, target: x86_64-apple-darwin, bundles: dmg }
+          - { name: macOS-ARM64, os: macos-latest, node: darwin-arm64, target: aarch64-apple-darwin, bundles: "app,dmg" }
+          - { name: macOS-Intel, os: macos-15-intel, node: darwin-x64, target: x86_64-apple-darwin, bundles: "app,dmg" }
           - { name: Linux-x64, os: ubuntu-22.04, node: linux-x64, target: "", bundles: "appimage,deb" }
     defaults:
       run:
