@@ -99,7 +99,7 @@ fn is_unsafe_name(name: &str) -> Option<&'static str> {
     None
 }
 
-fn read_capped<R: Read>(r: R, cap: u64) -> Result<Vec<u8>, PackageError> {
+pub(crate) fn read_capped<R: Read>(r: R, cap: u64) -> Result<Vec<u8>, PackageError> {
     let mut buf = Vec::new();
     r.take(cap + 1)
         .read_to_end(&mut buf)
