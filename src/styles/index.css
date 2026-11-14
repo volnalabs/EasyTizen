@@ -220,7 +220,7 @@
   .btn-ghost:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
   .btn-danger { background: var(--err-soft); color: var(--err); }
   .btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 18%, var(--surface)); }
-  .btn-link { color: var(--accent-text); padding-inline: 0.25rem; min-height: 2rem; font-weight: 550; }
+  .btn-link { color: var(--accent-text); padding-inline: 0.25rem; min-height: 2rem; font-weight: 550; justify-content: flex-start; text-align: start; }
   .btn-link:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
 
   .icon-btn {

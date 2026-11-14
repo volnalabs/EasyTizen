@@ -20,9 +20,9 @@ function Stepper({ steps }: { steps: { title: string; status: string; state: Ste
       {steps.map((s, i) => (
         <li key={s.title} aria-current={s.state === "current" ? "step" : undefined} className="min-w-0">
           <div className={`h-1 rounded-full transition-colors duration-300 ${s.state === "done" ? "bg-ok" : s.state === "current" ? "bg-accent" : "bg-surface-3"}`} />
-          <p className={`mt-2 text-caption font-semibold tracking-wide uppercase ${s.state === "locked" ? "text-faint" : s.state === "done" ? "text-ok" : "text-accent-text"}`}>{t("stepN", { n: i + 1 })}</p>
-          <p className={`text-small leading-snug font-medium break-words ${s.state === "locked" ? "text-muted" : "text-fg"}`}>{s.title}</p>
-          <p className="hidden text-caption break-words text-muted sm:block">{s.status}</p>
+          <p className={`mt-2 truncate text-caption font-semibold tracking-wide uppercase ${s.state === "locked" ? "text-faint" : s.state === "done" ? "text-ok" : "text-accent-text"}`}>{t("stepN", { n: i + 1 })}</p>
+          <p title={s.title} className={`truncate text-small leading-snug font-medium ${s.state === "locked" ? "text-muted" : "text-fg"}`}>{s.title}</p>
+          <p className="hidden truncate text-caption text-muted sm:block" title={s.status}>{s.status}</p>
         </li>
       ))}
     </ol>
