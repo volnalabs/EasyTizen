@@ -4,6 +4,7 @@
 //! can be unit-tested without a UI. The Tauri layer is a thin adapter on top.
 
 pub mod cancel;
+pub mod checks;
 pub mod connectivity;
 pub mod diagnostics;
 pub mod package;

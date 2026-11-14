@@ -9,6 +9,7 @@ mod sdk_engine;
 mod sdk_installer;
 mod settings;
 mod toolchain;
+mod updates;
 
 use easytizen_core::cancel::CancelToken;
 use std::collections::HashMap;
@@ -49,10 +50,31 @@ fn clean_stale_work_files(data_dir: &std::path::Path, cache_dir: &std::path::Pat
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut context = tauri::generate_context!();
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+    // Self-update is wired up only in builds that carry the project's update key; the
+    // frontend cannot reach the updater plugin directly (no capability grants it).
+    #[cfg(desktop)]
+    if let Some(key) = updates::pubkey() {
+        context.config_mut().plugins.0.insert(
+            "updater".into(),
+            // Signatures made by the bundler carry the version they were made for; requiring it
+            // stops a tampered manifest from pairing a new version number with an old artifact.
+            serde_json::json!({ "pubkey": key, "endpoints": [updates::MANIFEST_URL], "requireSignedVersion": true }),
+        );
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    #[cfg(mobile)]
+    {
+        builder = builder.plugin(updates::android::plugin());
+    }
+    builder
+        .manage(updates::UpdateState::default())
         .setup(|app| {
             let dir = app.path().app_data_dir().expect("app data dir");
             migrate::migrate_legacy_data(&dir);
@@ -91,6 +113,8 @@ pub fn run() {
             api::connect_tv,
             api::disconnect_tv,
             api::open_package,
+            api::verify_package,
+            api::set_extra_package_checks,
             api::create_certificate,
             api::import_certificate,
             api::remove_certificate,
@@ -101,8 +125,12 @@ pub fn run() {
             api::diagnostics_report,
             api::save_text_file,
             api::check_for_update,
+            updates::update_check,
+            updates::update_download,
+            updates::update_apply,
+            updates::update_open_permission_settings,
             api::open_external,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running EasyTizen");
 }

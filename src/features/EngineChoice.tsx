@@ -1,4 +1,4 @@
-import { Cpu, PackageCheck } from "lucide-react";
+import { Check, Cpu, PackageCheck } from "lucide-react";
 import { useApp } from "../app/context";
 import { Pill } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
@@ -27,18 +27,19 @@ export function EngineChoice() {
           const active = settings.engine === engine;
           return (
             <button key={engine} type="button" role="radio" aria-checked={active} onClick={() => void choose(engine)}
-              className={`rounded-xl border p-4 text-left transition-colors ${active ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border-strong)] hover:bg-[var(--surface-2)]"}`}>
-              <div className="flex items-center gap-2.5">
-                <Icon size={18} className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} aria-hidden />
+              className={`relative flex flex-col items-start rounded-[12px] border p-4 text-left transition-[background-color,border-color,box-shadow] ${active ? "border-accent bg-accent-soft shadow-[0_0_0_1px_var(--accent)]" : "border-line-strong bg-surface hover:bg-surface-2"}`}>
+              <div className="flex w-full items-center gap-2.5">
+                <Icon size={18} className={`shrink-0 ${active ? "text-accent-text" : "text-muted"}`} aria-hidden />
                 <span className="min-w-0 flex-1 font-semibold">{title}</span>
+                <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-accent bg-accent text-accent-ink" : "border-line-strong"}`} aria-hidden>{active && <Check size={12} strokeWidth={3} />}</span>
               </div>
               <div className="mt-2"><Pill tone={tone}>{tag}</Pill></div>
-              <p className="mt-2 text-[13px] text-[var(--muted)]">{body}</p>
+              <p className="mt-2 text-small text-muted">{body}</p>
             </button>
           );
         })}
       </div>
-      <p className="mt-2 text-xs text-[var(--muted)]">{t("engineNote")}</p>
+      <p className="mt-2.5 text-small text-muted">{t("engineNote")}</p>
     </div>
   );
 }

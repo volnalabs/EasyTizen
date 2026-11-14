@@ -17,6 +17,9 @@
 - [ ] Installing over an app signed by another author offers "Remove the old copy…", which works.
 - [ ] Importing `author.p12` + `distributor.p12` exported from Tizen Studio works.
 - [ ] Rotation, dark/light theme, Russian/English, back gesture, small screens.
+- [ ] System font size at 130 % and larger: nothing overlaps; bottom-bar labels at most shortened.
+- [ ] Self-update with a signed release: Settings → App updates finds it, downloads and verifies it, "Install update" opens Android's installer; after allowing "Install unknown apps" the update installs over the old version and TVs/certificates are kept.
+- [ ] With automatic updates off, no update request is made (check the network log) until "Check now".
 
 ## B. Desktop — official Samsung tools
 
@@ -34,6 +37,11 @@
 - [ ] The same end-to-end flow as in section A succeeds from a computer.
 
 ## D. Cross-cutting
+
+- [ ] Additional checks on (default): a package with a native executable or a broken app ID is blocked with an explanation; a clean package installs.
+- [ ] Turning the additional checks off asks for confirmation; every installation then asks to confirm; a zip-slip or DTD package is still refused.
+- [ ] Desktop self-update with a signed release: download, signature check, restart (macOS/AppImage) or installer (Windows/.deb) after confirmation; never while a TV installation runs; settings and certificates kept.
+- [ ] Keyboard only: every control reachable, visible focus, dialogs keep focus inside and return it.
 
 - [ ] Original `.wgt` is byte-identical after installation (compare SHA-256).
 - [ ] History lists successes and failures with the TV's message; Clear works.

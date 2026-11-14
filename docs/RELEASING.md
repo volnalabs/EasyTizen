@@ -30,6 +30,8 @@ EasyTizen-Linux-x64.deb
 SHA256SUMS.txt
 ```
 
+With the update key configured, the release also carries the signed update artifacts and `latest.json` (see below).
+
 Permanent links: `https://github.com/volnalabs/TV-Deploy/releases/latest/download/<file>`.
 
 The Android App Bundle (`EasyTizen-Android-GooglePlay.aab`) is deliberately not attached to the release — it cannot be installed by hand. Download it from the workflow run's artifacts (`google-play-bundle`) when uploading to Google Play.
@@ -74,6 +76,24 @@ The certificate is imported into the runner's user store and passed to Tauri by 
 
 All six are required; then Tauri signs and notarizes. Without them the app carries an ad-hoc signature only (`signingIdentity: "-"`), and users must allow the first launch manually. **This path has not yet run with real credentials.**
 
+### In-app updates (all platforms)
+
+EasyTizen updates itself only from artifacts signed with the project's update key (minisign, the format of `tauri signer`). Create the key once and keep the private half safe — losing it means installed apps cannot verify future updates:
+
+```sh
+npx tauri signer generate -w easytizen-updater.key
+```
+
+| Where | Name | Value |
+|---|---|---|
+| Secret | `TAURI_SIGNING_PRIVATE_KEY` | contents of `easytizen-updater.key` |
+| Secret | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | its password |
+| **Variable** (not secret) | `EASYTIZEN_UPDATER_PUBKEY` | contents of `easytizen-updater.key.pub` |
+
+With all three, the build workflow compiles the public key into every app, creates signed updater artifacts (`EasyTizen-Windows-x64-Setup.exe.sig`, `EasyTizen-macOS-*.app.tar.gz` + `.sig`, `EasyTizen-Linux-x64.AppImage.sig`, `.deb.sig` when the bundler produces it) and signs the APK (`EasyTizen-Android.apk.sig`). The release job writes `latest.json` (read by the app from `releases/latest/download/latest.json`) and lists every file in `SHA256SUMS.txt`; the Android updater checks the APK against that list.
+
+Without the key nothing is faked: the apps are built without a public key, show new releases and link to the installer, and `release.mjs verify` refuses update artifacts that appear without a signed build. Android updates additionally require the stable Android signing key above — Android refuses an update signed differently from the installed app. **The updater path has not yet run with a real key in CI.**
+
 ## Local helpers
 
 ```sh
@@ -81,5 +101,6 @@ node scripts/release.mjs check-version 1.0.0
 node scripts/release.mjs verify <folder with the six installers>
 node scripts/release.mjs notes <folder> 1.0.0 notes.md
 node scripts/readme-assets.mjs      # regenerate README artwork
-node scripts/screenshots.mjs        # regenerate screenshots (needs `vite preview` and Playwright)
+node scripts/release.mjs updater-manifest <folder> 1.0.0   # latest.json from the .sig files
+node scripts/screenshots.mjs        # regenerate RU and EN screenshots (needs `vite preview` and Playwright)
 ```

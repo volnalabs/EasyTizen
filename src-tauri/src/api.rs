@@ -9,6 +9,7 @@ use crate::history::{self, HistoryEntry};
 use crate::settings::{self, Engine, SavedCertificateProfile, SavedDevice, Settings};
 use crate::{builtin, sdk_engine, AppState};
 use easytizen_core::cancel::CancelToken;
+use easytizen_core::checks::{self, ExtraChecks};
 use easytizen_core::connectivity::{local_ip_towards, probe_tcp, Probe, MIN_DIAGNOSTIC_TIMEOUT};
 use easytizen_core::diagnostics::{self, Diagnosis};
 use easytizen_core::package::{analyze_wgt, PackageError, PackageReport};
@@ -600,6 +601,34 @@ pub async fn open_package(
     .map_err(|_| ApiError::new("internal"))?
 }
 
+/// Additional checks for the package shown in the App step. Returns a disabled report when the
+/// user turned them off. `as_is`: the package would be installed without re-signing.
+#[tauri::command]
+pub async fn verify_package(
+    state: State<'_, AppState>,
+    path: String,
+    as_is: bool,
+) -> ApiResult<ExtraChecks> {
+    if is_uri(&path) {
+        return Err(ApiError::new("invalid_path"));
+    }
+    validate::check_cli_path(&path)?;
+    if !state.settings.lock().unwrap().extra_package_checks {
+        return Ok(ExtraChecks::disabled());
+    }
+    tauri::async_runtime::spawn_blocking(move || checks::run(Path::new(&path), as_is))
+        .await
+        .map_err(|_| ApiError::new("internal"))?
+        .map_err(|e| package_error(&e))
+}
+
+#[tauri::command]
+pub fn set_extra_package_checks(state: State<'_, AppState>, enabled: bool) -> ApiResult<()> {
+    let mut s = state.settings.lock().unwrap();
+    s.extra_package_checks = enabled;
+    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))
+}
+
 // ---------- certificates ----------
 
 #[derive(serde::Deserialize)]
@@ -743,6 +772,37 @@ pub struct InstallArgs {
     pub resign: bool,
     /// Certificate password for the built-in engine; remembered in memory for this session.
     pub password: Option<String>,
+    /// The additional checks are off and the user confirmed installing without them.
+    #[serde(default)]
+    pub checks_skip_confirmed: bool,
+}
+
+/// The package gate every installation passes.
+///
+/// The mandatory archive-safety analysis always runs. The additional checks run when they are
+/// enabled and refuse the installation on a blocking finding; when they are disabled the user
+/// must have confirmed installing without them.
+pub fn package_gate(
+    path: &Path,
+    extra_enabled: bool,
+    as_is: bool,
+    skip_confirmed: bool,
+) -> ApiResult<(PackageReport, ExtraChecks)> {
+    let report = analyze_wgt(path).map_err(|e| package_error(&e))?;
+    if !extra_enabled {
+        if !skip_confirmed {
+            return Err(ApiError::new("checks_skip_not_confirmed"));
+        }
+        return Ok((report, ExtraChecks::disabled()));
+    }
+    let extra = checks::run(path, as_is).map_err(|e| package_error(&e))?;
+    if !extra.passed() {
+        return Err(ApiError::with(
+            "pkg_checks_failed",
+            extra.blocking_summary(),
+        ));
+    }
+    Ok((report, extra))
 }
 
 /// Everything an engine needs to run one installation.
@@ -769,13 +829,14 @@ pub async fn install_package(
         return Err(ApiError::new("invalid_path"));
     }
     validate::check_cli_path(&args.package_path)?;
-    let report = tauri::async_runtime::spawn_blocking({
+    let extra_enabled = state.settings.lock().unwrap().extra_package_checks;
+    let (report, _) = tauri::async_runtime::spawn_blocking({
         let path = PathBuf::from(&args.package_path);
-        move || analyze_wgt(&path)
+        let (as_is, confirmed) = (!args.resign, args.checks_skip_confirmed);
+        move || package_gate(&path, extra_enabled, as_is, confirmed)
     })
     .await
-    .map_err(|_| ApiError::new("internal"))?
-    .map_err(|e| package_error(&e))?;
+    .map_err(|_| ApiError::new("internal"))??;
 
     let (tv_name, profile) = {
         let s = state.settings.lock().unwrap();
@@ -948,6 +1009,16 @@ pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String 
         "Default TV port: {}, timeout: {} ms",
         s.default_port, s.timeout_ms
     ));
+    lines.push(format!(
+        "Additional package checks: {}; automatic updates: {} (update key {})",
+        if s.extra_package_checks { "on" } else { "OFF" },
+        if s.check_updates { "on" } else { "off" },
+        if crate::updates::pubkey().is_some() {
+            "present"
+        } else {
+            "absent"
+        }
+    ));
     if cfg!(desktop) {
         let t = sdk_engine::toolchain_status(&app, &state);
         lines.push(format!(
@@ -1091,6 +1162,91 @@ mod tests {
         assert!(validate_profile_name("EasyTizen-TV_1").is_ok());
         for bad in ["ab", "has space", "sl/ash", "../up", "naïve"] {
             assert!(validate_profile_name(bad).is_err(), "{bad}");
+        }
+    }
+
+    fn wgt(entries: &[(&str, &[u8])]) -> tempfile::NamedTempFile {
+        use std::io::Write;
+        let f = tempfile::Builder::new().suffix(".wgt").tempfile().unwrap();
+        let mut w = zip::ZipWriter::new(f.reopen().unwrap());
+        for (name, data) in entries {
+            w.start_file(*name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            w.write_all(data).unwrap();
+        }
+        w.finish().unwrap();
+        f
+    }
+
+    const CONFIG: &str = r#"<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" version="1.0.0"><tizen:application id="abcde12345.Demo" package="abcde12345"/><name>Demo</name></widget>"#;
+
+    #[test]
+    fn package_gate_with_additional_checks_on() {
+        let clean = wgt(&[("config.xml", CONFIG.as_bytes()), ("index.html", b"x")]);
+        let (_, extra) = package_gate(clean.path(), true, false, false).unwrap();
+        assert!(extra.enabled && extra.findings.is_empty());
+
+        let native = wgt(&[
+            ("config.xml", CONFIG.as_bytes()),
+            ("index.html", b"x"),
+            ("bin/run", b"\x7fELF...."),
+        ]);
+        let e = package_gate(native.path(), true, false, false).unwrap_err();
+        assert_eq!(e.code, "pkg_checks_failed");
+        assert_eq!(e.detail.as_deref(), Some("native_code"));
+        // Confirming a skip does not bypass checks that are switched on.
+        assert_eq!(
+            package_gate(native.path(), true, false, true)
+                .unwrap_err()
+                .code,
+            "pkg_checks_failed"
+        );
+    }
+
+    #[test]
+    fn package_gate_with_additional_checks_off_needs_confirmation() {
+        let native = wgt(&[
+            ("config.xml", CONFIG.as_bytes()),
+            ("index.html", b"x"),
+            ("bin/run", b"\x7fELF...."),
+        ]);
+        assert_eq!(
+            package_gate(native.path(), false, false, false)
+                .unwrap_err()
+                .code,
+            "checks_skip_not_confirmed"
+        );
+        let (report, extra) = package_gate(native.path(), false, false, true).unwrap();
+        assert_eq!(report.app_id.as_deref(), Some("abcde12345.Demo"));
+        assert!(!extra.enabled && extra.ran.is_empty());
+    }
+
+    #[test]
+    fn mandatory_file_safety_holds_in_both_modes() {
+        let bomb = r#"<?xml version="1.0"?><!DOCTYPE widget [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;">]><widget>&b;</widget>"#;
+        let slip = wgt(&[("config.xml", CONFIG.as_bytes()), ("../../evil", b"x")]);
+        let xml = wgt(&[("config.xml", bomb.as_bytes()), ("index.html", b"x")]);
+        let no_config = wgt(&[("index.html", b"x")]);
+        let not_zip = tempfile::Builder::new().suffix(".wgt").tempfile().unwrap();
+        std::fs::write(not_zip.path(), b"definitely not a zip").unwrap();
+        let big_xml = wgt(&[
+            ("config.xml", &vec![b' '; 2 * 1024 * 1024]),
+            ("index.html", b"x"),
+        ]);
+        let cases = [
+            (slip.path(), "pkg_unsafe"),
+            (xml.path(), "pkg_bad_config"),
+            (no_config.path(), "pkg_missing_config"),
+            (not_zip.path(), "pkg_not_zip"),
+            (big_xml.path(), "pkg_unsafe"),
+        ];
+        for (path, code) in cases {
+            for extra_enabled in [true, false] {
+                for (as_is, confirmed) in [(false, false), (false, true), (true, true)] {
+                    let e = package_gate(path, extra_enabled, as_is, confirmed).unwrap_err();
+                    assert_eq!(e.code, code, "{path:?} extra={extra_enabled}");
+                }
+            }
         }
     }
 

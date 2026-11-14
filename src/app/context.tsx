@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { Updater } from "../features/updates/useUpdater";
 import type { AppInfo, Settings, ToolchainStatus, TvInfo } from "../types";
 
 export type Page = "install" | "tvs" | "certs" | "history" | "settings";
@@ -17,6 +18,10 @@ export interface AppCtx {
   go: (page: Page) => void;
   /** The SDK engine is selected but its tools are not ready yet. */
   toolsMissing: boolean;
+  /** An installation, SDK set-up or certificate request is running: updates wait for it. */
+  busy: boolean;
+  setBusy: (key: string, active: boolean) => void;
+  updater: Updater;
 }
 
 export const AppContext = createContext<AppCtx | null>(null);

@@ -1,5 +1,5 @@
-import { CircleHelp, Plus, Search, Tv2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, CircleHelp, Search, Tv2 } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useApp } from "../app/context";
 import { DiagnosisPanel } from "../components/DiagnosisPanel";
 import { Button, Modal, Progress } from "../components/ui";
@@ -24,6 +24,7 @@ export function TvFinder({ onConnected, showSaved = true }: { onConnected: (tv: 
   const [problem, setProblem] = useState<{ d: Diagnosis; technical: string | null; hostIp: string | null } | null>(null);
   const [guide, setGuide] = useState(false);
   const op = useRef<string | null>(null);
+  const ipId = useId();
 
   useEffect(() => {
     const off = on<{ op_id: string | null; fraction: number }>("scan-progress", (p) => { if (p.op_id === op.current) setScanFraction(p.fraction); });
@@ -86,43 +87,50 @@ export function TvFinder({ onConnected, showSaved = true }: { onConnected: (tv: 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
-        <Button variant="primary" busy={scanning} disabled={!!connectingKey} onClick={scan}><Search size={16} aria-hidden />{scanning ? t("tvFinding") : t("tvFind")}</Button>
-        {busy && <Button variant="ghost" onClick={() => op.current && void api.cancel(op.current)}>{t("cancel")}</Button>}
-        <form className="ml-auto flex min-w-0 flex-1 basis-64 items-center gap-2 sm:flex-none" onSubmit={(e) => { e.preventDefault(); submitManual(); }}>
-          <input value={manual} onChange={(e) => { setManual(e.target.value); setManualError(false); }} placeholder={t("tvIpPlaceholder")} aria-label={t("tvIpLabel")}
-            aria-invalid={manualError} inputMode="decimal" autoComplete="off" className="input min-w-0 flex-1 sm:w-44" />
-          <Button type="submit" busy={connectingKey === `${manual.trim()}:`} disabled={busy}><Plus size={16} aria-hidden />{t("tvAddByIp")}</Button>
+      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-end">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="primary" busy={scanning} disabled={!!connectingKey} onClick={scan} className="max-sm:flex-1">{!scanning && <Search size={16} aria-hidden />}{scanning ? t("tvFinding") : t("tvFind")}</Button>
+          {busy && <Button variant="ghost" onClick={() => op.current && void api.cancel(op.current)}>{t("cancel")}</Button>}
+        </div>
+        <form className="@container min-w-0" onSubmit={(e) => { e.preventDefault(); submitManual(); }}>
+          <label htmlFor={ipId} className="mb-1.5 block text-small font-semibold sm:sr-only">{t("tvIpLabel")}</label>
+          <div className="flex flex-col gap-2 @[19rem]:flex-row sm:justify-end">
+            <input id={ipId} value={manual} onChange={(e) => { setManual(e.target.value); setManualError(false); }} placeholder={t("tvIpPlaceholder")}
+              aria-invalid={manualError} aria-describedby={manualError ? `${ipId}-err` : undefined} inputMode="decimal" autoComplete="off" spellCheck={false}
+              className="input data min-w-0 @[19rem]:flex-1 sm:max-w-[12rem]" />
+            <Button type="submit" busy={connectingKey === `${manual.trim()}:`} disabled={busy} aria-label={t("tvConnectByIp")}>{t("tvAddByIp")}{connectingKey !== `${manual.trim()}:` && <ArrowRight size={16} aria-hidden />}</Button>
+          </div>
         </form>
       </div>
       {scanning && <Progress value={scanFraction} label={t("tvFinding")} />}
-      {manualError && <p role="alert" className="text-[var(--err)]">{t("tvInvalidIp")}</p>}
+      {manualError && <p id={`${ipId}-err`} role="alert" className="text-small text-err">{t("tvInvalidIp")}</p>}
 
       {entries.length > 0 && (
-        <ul className="m-0 list-none divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] p-0">
+        <ul className="@container m-0 list-none divide-y divide-line overflow-hidden rounded-[12px] border border-line p-0" aria-label={t("tvListLabel")}>
           {entries.map((e) => {
             const key = `${e.ip}:${e.port}`;
             return (
-              <li key={key} className="fade-up flex items-center gap-3 px-3.5 py-3">
-                <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--surface-2)] text-[var(--muted)]">
+              <li key={key} className="fade-up flex items-center gap-3 py-3 pr-3 pl-3.5 sm:px-4">
+                <span className="relative hidden h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-muted @[22rem]:grid">
                   <Tv2 size={18} aria-hidden />
-                  {e.live && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface)] bg-[var(--ok)]" />}
+                  {e.live && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-ok" aria-hidden />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{e.name ?? "Samsung TV"}</p>
-                  <p className="selectable truncate text-xs text-[var(--muted)]">{e.ip} · {e.live ? t("tvFound") : t("tvSaved")}</p>
+                  <p className="leading-snug font-semibold break-words">{e.name ?? "Samsung TV"}</p>
+                  <p className="text-caption text-muted">
+                    <span className="data whitespace-nowrap">{e.ip}</span>
+                    <span className="whitespace-nowrap"> · <span className={e.live ? "font-medium text-ok" : ""}>{e.live ? t("tvFound") : t("tvSaved")}</span></span>
+                  </p>
                 </div>
-                <Button size="sm" busy={connectingKey === key} disabled={busy} onClick={() => connect(e.ip, e.port)}>{connectingKey === key ? t("tvConnecting") : t("tvConnect")}</Button>
+                <Button size="sm" busy={connectingKey === key} disabled={busy} onClick={() => connect(e.ip, e.port)} aria-label={`${t("tvConnect")}: ${e.name ?? e.ip}`}>{connectingKey === key ? t("tvConnecting") : t("tvConnect")}</Button>
               </li>
             );
           })}
         </ul>
       )}
-      {found !== null && found.length === 0 && !scanning && !problem && <p className="text-[var(--muted)]">{t("tvNoneFound")}</p>}
+      {found !== null && found.length === 0 && !scanning && !problem && <p className="text-muted">{t("tvNoneFound")}</p>}
       {problem && <DiagnosisPanel diagnosis={problem.d} technical={problem.technical} hostIp={problem.hostIp} />}
-      <button type="button" onClick={() => setGuide(true)} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--accent)] hover:underline">
-        <CircleHelp size={15} aria-hidden />{t("tvHelp")}
-      </button>
+      <Button variant="link" size="sm" onClick={() => setGuide(true)} className="-ml-1"><CircleHelp size={16} aria-hidden />{t("tvHelp")}</Button>
       {guide && <Modal title={t("devTitle")} onClose={() => setGuide(false)} wide><DevModeGuide /></Modal>}
     </div>
   );

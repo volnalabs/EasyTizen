@@ -1,7 +1,7 @@
 import { KeyRound, Plus, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../app/context";
-import { Button, EmptyState, IconButton, IconTile, Modal, PageHeader, Pill, useToast } from "../components/ui";
+import { Button, DataList, EmptyState, IconButton, IconTile, Modal, PageHeader, Pill, Row, useToast } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import { daysLeft, formatDate } from "../lib/format";
 import { api, toApiError } from "../services/api";
@@ -42,24 +42,29 @@ export function CertificatesPage() {
           {settings.certificate_profiles.map((p) => {
             const days = daysLeft(p.expires_at);
             const other = p.engine !== engine;
+            const expired = days != null && days < 0;
             return (
-              <li key={p.name} className={`card fade-up p-4 ${other ? "opacity-70" : ""}`}>
+              <li key={p.name} className={`card fade-up p-4 sm:p-5 ${other ? "opacity-75" : ""}`}>
                 <div className="flex items-start gap-3">
-                  <IconTile tone={days != null && days < 0 ? "err" : "accent"}><ShieldCheck size={20} aria-hidden /></IconTile>
+                  <IconTile tone={expired ? "err" : "accent"}><ShieldCheck size={20} aria-hidden /></IconTile>
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="selectable truncate font-semibold">{p.name}</p>
+                    <p className="selectable data text-emph font-semibold">{p.name}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {expired ? <Pill tone="err">{t("certExpired", { date: formatDate(p.expires_at!, lang) })}</Pill>
+                        : days != null && days <= 30 ? <Pill tone="warn">{t("certExpiresSoon", { days })}</Pill>
+                          : <Pill tone="ok">{t("certValid")}</Pill>}
                       {!info.mobile && <Pill tone="neutral">{p.engine === "sdk" ? t("certEngineSdk") : t("certEngineBuiltin")}</Pill>}
                       {p.imported && <Pill tone="neutral">{t("certImported")}</Pill>}
-                      {days != null && (days < 0 ? <Pill tone="err">{t("certExpired", { date: formatDate(p.expires_at!, lang) })}</Pill> : days <= 30 ? <Pill tone="warn">{t("certExpiresSoon", { days })}</Pill> : null)}
                     </div>
-                    <p className="mt-1 text-[13px] text-[var(--muted)]">{t("certAuthor")}: <span className="text-[var(--text)]">{p.identity}</span></p>
-                    <p className="text-[13px] text-[var(--muted)]">{t("certTvs")}: <span className="text-[var(--text)]">{p.duids.map(tvName).join(", ")}</span></p>
-                    {days != null && days > 30 && <p className="text-[13px] text-[var(--muted)]">{t("certExpires", { date: formatDate(p.expires_at!, lang) })}</p>}
-                    {other && <p className="mt-1.5 text-xs text-[var(--warn)]">{t("certOtherEngine")}</p>}
                   </div>
-                  <IconButton label={t("remove")} onClick={() => setRemoving(p)}><Trash2 size={16} aria-hidden /></IconButton>
+                  <IconButton label={t("certRemoveNamed", { name: p.name })} onClick={() => setRemoving(p)}><Trash2 size={16} aria-hidden /></IconButton>
                 </div>
+                <DataList className="mt-3 border-t border-line">
+                  <Row label={t("certAuthor")}>{p.identity}</Row>
+                  <Row label={t("certTvs")}>{p.duids.map(tvName).join(", ")}</Row>
+                  {p.expires_at != null && <Row label={t("certValidUntil")}>{formatDate(p.expires_at, lang)}</Row>}
+                </DataList>
+                {other && <p className="mt-2 text-small text-warn">{t("certOtherEngine")}</p>}
               </li>
             );
           })}
@@ -68,7 +73,7 @@ export function CertificatesPage() {
       {dialog === "create" && <CreateCertificateDialog preselectDuid={tv?.duid} onClose={() => setDialog(null)} onCreated={() => setDialog(null)} />}
       {dialog === "import" && <ImportCertificateDialog onClose={() => setDialog(null)} onImported={() => setDialog(null)} />}
       {removing && (
-        <Modal title={t("remove")} onClose={() => setRemoving(null)}
+        <Modal title={t("certRemoveTitle")} onClose={() => setRemoving(null)}
           footer={<><Button variant="ghost" onClick={() => setRemoving(null)}>{t("cancel")}</Button><Button variant="danger" busy={busy} onClick={() => void remove()}>{t("remove")}</Button></>}>
           <p>{t("certRemoveConfirm", { name: removing.name })}</p>
         </Modal>

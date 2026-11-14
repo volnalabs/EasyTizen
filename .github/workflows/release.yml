@@ -84,8 +84,13 @@ jobs:
           SIGNING_ANDROID: ${{ needs.build.outputs.signing_android }}
           SIGNING_WINDOWS: ${{ needs.build.outputs.signing_windows }}
           SIGNING_MACOS: ${{ needs.build.outputs.signing_macos }}
+          SIGNING_UPDATER: ${{ needs.build.outputs.signing_updater }}
         run: |
           node scripts/release.mjs verify release
+          # latest.json: what the in-app updater of every installed EasyTizen reads.
+          if [ "$SIGNING_UPDATER" = "signed" ]; then
+            node scripts/release.mjs updater-manifest release "${{ needs.prepare.outputs.version }}"
+          fi
           node scripts/release.mjs notes release "${{ needs.prepare.outputs.version }}" release-notes.md
           cat release/SHA256SUMS.txt
       - name: Publish

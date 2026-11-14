@@ -19,6 +19,9 @@ on:
       signing_macos:
         description: "notarized | adhoc"
         value: ${{ jobs.signing.outputs.macos }}
+      signing_updater:
+        description: "signed | none — update artifacts signed for in-app updates"
+        value: ${{ jobs.signing.outputs.updater }}
 
 permissions:
   contents: read
@@ -32,16 +35,20 @@ jobs:
       android: ${{ steps.s.outputs.android }}
       windows: ${{ steps.s.outputs.windows }}
       macos: ${{ steps.s.outputs.macos }}
+      updater: ${{ steps.s.outputs.updater }}
     steps:
       - id: s
         env:
           HAS_ANDROID: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' }}
           HAS_WINDOWS: ${{ secrets.WINDOWS_CERTIFICATE != '' && secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
           HAS_MACOS: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+          # In-app updates: the private minisign key (secret) and its public half (variable).
+          HAS_UPDATER: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' && vars.EASYTIZEN_UPDATER_PUBKEY != '' }}
         run: |
           [ "$HAS_ANDROID" = "true" ] && echo "android=release" >> "$GITHUB_OUTPUT" || echo "android=temporary" >> "$GITHUB_OUTPUT"
           [ "$HAS_WINDOWS" = "true" ] && echo "windows=signed" >> "$GITHUB_OUTPUT" || echo "windows=unsigned" >> "$GITHUB_OUTPUT"
           [ "$HAS_MACOS" = "true" ] && echo "macos=notarized" >> "$GITHUB_OUTPUT" || echo "macos=adhoc" >> "$GITHUB_OUTPUT"
+          [ "$HAS_UPDATER" = "true" ] && echo "updater=signed" >> "$GITHUB_OUTPUT" || echo "updater=none" >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   desktop:
@@ -53,8 +60,8 @@ jobs:
       matrix:
         include:
           - { name: Windows-x64, os: windows-latest, node: win-x64, target: "", bundles: nsis }
-          - { name: macOS-ARM64, os: macos-latest, node: darwin-arm64, target: aarch64-apple-darwin, bundles: dmg }
-          - { name: macOS-Intel, os: macos-15-intel, node: darwin-x64, target: x86_64-apple-darwin, bundles: dmg }
+          - { name: macOS-ARM64, os: macos-latest, node: darwin-arm64, target: aarch64-apple-darwin, bundles: "app,dmg" }
+          - { name: macOS-Intel, os: macos-15-intel, node: darwin-x64, target: x86_64-apple-darwin, bundles: "app,dmg" }
           - { name: Linux-x64, os: ubuntu-22.04, node: linux-x64, target: "", bundles: "appimage,deb" }
     defaults:
       run:
@@ -112,11 +119,26 @@ jobs:
             echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
           } >> "$GITHUB_ENV"
 
+      - name: Enable signed update artifacts
+        if: needs.signing.outputs.updater == 'signed'
+        env:
+          EASYTIZEN_UPDATER_PUBKEY: ${{ vars.EASYTIZEN_UPDATER_PUBKEY }}
+        run: |
+          # The bundler signs the artifacts and needs the matching public key in the config.
+          node -e 'require("fs").writeFileSync("updater.conf.json", JSON.stringify({ bundle: { createUpdaterArtifacts: true }, plugins: { updater: { pubkey: process.env.EASYTIZEN_UPDATER_PUBKEY, endpoints: ["https://github.com/volnalabs/TV-Deploy/releases/latest/download/latest.json"], requireSignedVersion: true } } }))'
+
       - name: Build
+        env:
+          # Only with the update key configured: compiled-in public key and the signing key the
+          # bundler uses for the updater artifacts (passed to this step only).
+          EASYTIZEN_UPDATER_PUBKEY: ${{ needs.signing.outputs.updater == 'signed' && vars.EASYTIZEN_UPDATER_PUBKEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ needs.signing.outputs.updater == 'signed' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ needs.signing.outputs.updater == 'signed' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           args=(--bundles "${{ matrix.bundles }}")
           if [ -n "${{ matrix.target }}" ]; then args+=(--target "${{ matrix.target }}"); fi
           if [ -f sign.conf.json ]; then args+=(--config sign.conf.json); fi
+          if [ -f updater.conf.json ]; then args+=(--config updater.conf.json); fi
           npx tauri build "${args[@]}"
 
       - name: Collect installers under their published names
@@ -137,6 +159,21 @@ jobs:
               collect appimage AppImage EasyTizen-Linux-x64.AppImage
               collect deb deb EasyTizen-Linux-x64.deb ;;
           esac
+          # Signed update artifacts (only when the update key is configured).
+          if [ "${{ needs.signing.outputs.updater }}" = "signed" ]; then
+            case "${{ matrix.name }}" in
+              Windows-x64) collect nsis exe.sig EasyTizen-Windows-x64-Setup.exe.sig ;;
+              macOS-ARM64)
+                collect macos app.tar.gz EasyTizen-macOS-ARM64.app.tar.gz
+                collect macos app.tar.gz.sig EasyTizen-macOS-ARM64.app.tar.gz.sig ;;
+              macOS-Intel)
+                collect macos app.tar.gz EasyTizen-macOS-Intel.app.tar.gz
+                collect macos app.tar.gz.sig EasyTizen-macOS-Intel.app.tar.gz.sig ;;
+              Linux-x64)
+                collect appimage AppImage.sig EasyTizen-Linux-x64.AppImage.sig
+                if [ -n "$(find target -path '*/release/bundle/deb/*.deb.sig' -type f)" ]; then collect deb deb.sig EasyTizen-Linux-x64.deb.sig; fi ;;
+            esac
+          fi
           ls -la out
       - uses: actions/upload-artifact@v4
         with:
@@ -193,6 +230,9 @@ jobs:
           printf 'storeFile=%s\npassword=%s\nkeyAlias=%s\n' "$store" "$password" "$alias" > src-tauri/gen/android/keystore.properties
 
       - name: Build APK and AAB
+        env:
+          # Public update key compiled into the app (empty: the app offers manual downloads only).
+          EASYTIZEN_UPDATER_PUBKEY: ${{ needs.signing.outputs.updater == 'signed' && vars.EASYTIZEN_UPDATER_PUBKEY || '' }}
         run: npx tauri android build --apk --aab --target aarch64 armv7
 
       - name: Collect
@@ -202,6 +242,14 @@ jobs:
           cp src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab play/EasyTizen-Android-GooglePlay.aab
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs out/EasyTizen-Android.apk | head -3
           rm -f src-tauri/gen/android/keystore.properties
+      - name: Sign the APK for in-app updates
+        if: needs.signing.outputs.updater == 'signed'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          npx tauri signer sign out/EasyTizen-Android.apk
+          test -s out/EasyTizen-Android.apk.sig
       - uses: actions/upload-artifact@v4
         with:
           name: installer-Android

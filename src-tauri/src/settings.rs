@@ -86,10 +86,17 @@ pub struct Settings {
     pub devices: Vec<SavedDevice>,
     pub certificate_profiles: Vec<SavedCertificateProfile>,
     pub onboarding_done: bool,
-    /// Ask GitHub for a newer EasyTizen release at start-up.
+    /// Automatic updates: look for a newer EasyTizen release periodically and download and
+    /// verify it in the background. Off means no background network activity at all.
     pub check_updates: bool,
     /// Folder of an SDK installation that was started but has not finished (resume hint).
     pub pending_sdk_install: Option<String>,
+    /// Additional package checks before installation (app ID, start page, executables,
+    /// duplicate names, existing signature). The mandatory archive-safety checks are not
+    /// affected by this switch. Missing in older settings files, so it defaults to on.
+    pub extra_package_checks: bool,
+    /// Unix seconds of the last update check (successful or not).
+    pub last_update_check: Option<i64>,
 }
 
 impl Default for Settings {
@@ -110,6 +117,8 @@ impl Default for Settings {
             onboarding_done: false,
             check_updates: true,
             pending_sdk_install: None,
+            extra_package_checks: true,
+            last_update_check: None,
         }
     }
 }
@@ -202,6 +211,23 @@ mod tests {
             load(d.path()).certificate_profiles[0].duids,
             ["ABCD1234EFGH"]
         );
+    }
+
+    #[test]
+    fn new_settings_default_to_the_safe_choice_and_persist() {
+        let d = tempfile::tempdir().unwrap();
+        // A 0.9 settings file has neither field: additional checks stay on.
+        std::fs::write(file(d.path()), r#"{"theme":"dark","check_updates":false}"#).unwrap();
+        let mut s = load(d.path());
+        assert!(s.extra_package_checks);
+        assert!(!s.check_updates, "an existing choice is kept");
+        assert_eq!(s.last_update_check, None);
+        s.extra_package_checks = false;
+        s.last_update_check = Some(1_700_000_000);
+        save(d.path(), &s).unwrap();
+        let back = load(d.path());
+        assert!(!back.extra_package_checks, "the choice survives a restart");
+        assert_eq!(back.last_update_check, Some(1_700_000_000));
     }
 
     #[test]

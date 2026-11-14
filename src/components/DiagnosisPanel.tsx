@@ -14,15 +14,15 @@ export function DiagnosisPanel({ diagnosis, technical, hostIp }: { diagnosis: Di
   const { t } = useI18n();
   const params = { hostIp: hostIp ?? "—" };
   return (
-    <div role="alert" className="fade-up rounded-xl bg-[var(--warn-soft)] p-4">
+    <div role="alert" className="fade-up rounded-[12px] border border-[color-mix(in_srgb,var(--warn)_28%,transparent)] bg-warn-soft p-4">
       <div className="flex gap-3">
-        <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--warn)]" aria-hidden />
+        <AlertTriangle size={18} className="mt-px shrink-0 text-warn" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{t(`dx_${diagnosis}` as Key)}</p>
-          <p className="mt-1 text-[var(--muted)]">{t(`dx_${diagnosis}_body` as Key, params)}</p>
+          <p className="mt-1 text-small text-muted">{t(`dx_${diagnosis}_body` as Key, params)}</p>
           {CHECKS[diagnosis] && (
-            <ul className="m-0 mt-2 list-disc space-y-1 pl-5 text-[var(--muted)]">
-              {CHECKS[diagnosis]!.map((k) => <li key={k}>{t(k, params)}</li>)}
+            <ul className="m-0 mt-2.5 list-none space-y-1.5 p-0 text-small">
+              {CHECKS[diagnosis]!.map((k) => <li key={k} className="flex gap-2"><span className="mt-[0.55em] h-1 w-1 shrink-0 rounded-full bg-warn" aria-hidden /><span className="min-w-0">{t(k, params)}</span></li>)}
             </ul>
           )}
           {technical && <Details label={t("technicalDetails")}>{technical}</Details>}

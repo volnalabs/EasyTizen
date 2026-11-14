@@ -1,7 +1,7 @@
 import { ExternalLink, FileKey, KeyRound, LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../app/context";
-import { Button, Details, Field, Modal, Notice, Progress, Toggle, useToast } from "../components/ui";
+import { Button, Details, Field, IconTile, Modal, Notice, Progress, Toggle, useToast } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import type { Key } from "../i18n";
 import { opId, passwordProblem, validProfileName } from "../lib/format";
@@ -11,7 +11,7 @@ import type { ApiError, CertProgress, CertStage, CertificateProfile } from "../t
 /** Create a Samsung certificate for one or more connected TVs. */
 export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: { preselectDuid?: string | null; onClose: () => void; onCreated: (p: CertificateProfile) => void }) {
   const { t, err } = useI18n();
-  const { settings, refresh } = useApp();
+  const { settings, refresh, setBusy: markBusy } = useApp();
   const toast = useToast();
   const tvs = useMemo(() => settings.devices.filter((d) => !!d.duid), [settings.devices]);
   const [selected, setSelected] = useState<string[]>(() => {
@@ -36,6 +36,7 @@ export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: {
   const [touched, setTouched] = useState(false);
   const op = useRef<string | null>(null);
 
+  useEffect(() => { markBusy("certificate", busy); return () => markBusy("certificate", false); }, [busy, markBusy]);
   useEffect(() => {
     const off = on<CertProgress>("cert-progress", (p) => { if (p.op_id === op.current) { setStage(p.stage); if (p.url) setUrl(p.url); } });
     return () => { void off.then((f) => f()); };
@@ -67,32 +68,34 @@ export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: {
   const close = () => { if (busy && op.current) void api.cancel(op.current); onClose(); };
 
   return (
-    <Modal title={t("certCreateTitle")} onClose={close} wide
+    <Modal title={t("certCreateTitle")} onClose={close} wide dismissible={!busy}
       footer={busy
         ? <Button onClick={() => op.current && void api.cancel(op.current)}>{t("cancel")}</Button>
         : <><Button variant="ghost" onClick={onClose}>{t("cancel")}</Button><Button variant="primary" disabled={tvs.length === 0} onClick={() => void create()}><KeyRound size={16} aria-hidden />{t("certCreateButton")}</Button></>}>
       {tvs.length === 0 ? <Notice tone="warn">{t("certNeedTv")}</Notice> : busy ? (
-        <div className="py-6 text-center">
-          <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
-            <span className="pulse-ring absolute inset-0 rounded-2xl border-2 border-[var(--accent)]" /><KeyRound size={24} aria-hidden />
+        <div className="py-6 text-center" aria-live="polite">
+          <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-[16px] bg-accent-soft text-accent-text">
+            <span className="pulse-ring absolute inset-0 rounded-[16px] border-2 border-accent" /><KeyRound size={24} aria-hidden />
           </span>
-          <p className="mt-4 font-medium">{stage ? t(`certStage_${stage}` as Key) : t("certStageSdk")}</p>
-          {(stage === "signin" || !stage) && <p className="mt-1 text-[13px] text-[var(--muted)]">{t("certReturnHint")}</p>}
-          <div className="mx-auto mt-4 max-w-xs"><Progress value={stage ? (["signin", "author", "distributor", "saving"].indexOf(stage) + 1) / 5 : null} /></div>
+          <p className="mx-auto mt-4 max-w-[34ch] font-semibold">{stage ? t(`certStage_${stage}` as Key) : t("certStageSdk")}</p>
+          {(stage === "signin" || !stage) && <p className="mx-auto mt-1 max-w-[38ch] text-small text-muted">{t("certReturnHint")}</p>}
+          <div className="mx-auto mt-5 max-w-xs"><Progress value={stage ? (["signin", "author", "distributor", "saving"].indexOf(stage) + 1) / 5 : null} label={t("certCreateTitle")} /></div>
           {stage === "signin" && url && <Button size="sm" className="mt-4" onClick={() => void api.openExternal(url)}><ExternalLink size={14} aria-hidden />{t("certOpenAgain")}</Button>}
         </div>
       ) : (
         <div className="space-y-4">
           <div>
-            <span className="mb-1.5 block text-[13px] font-medium">{t("certForTvs")}</span>
-            <div className="space-y-1.5">
+            <span className="mb-1.5 block text-small font-semibold">{t("certForTvs")}</span>
+            <div className="space-y-2">
               {tvs.map((d) => {
                 const checked = selected.includes(d.duid!);
                 return (
-                  <label key={d.duid} className={`flex cursor-pointer items-center gap-3 rounded-[10px] border px-3 py-2 transition-colors ${checked ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border-strong)]"}`}>
-                    <input type="checkbox" className="accent-[var(--accent)]" checked={checked} onChange={() => setSelected((s) => (checked ? s.filter((x) => x !== d.duid) : [...s, d.duid!]))} />
-                    <span className="min-w-0 flex-1 truncate font-medium">{d.name}</span>
-                    <span className="selectable text-xs text-[var(--muted)]">{d.ip}</span>
+                  <label key={d.duid} className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-[10px] border px-3 py-2 transition-colors ${checked ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-surface-2"}`}>
+                    <input type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--accent)]" checked={checked} onChange={() => setSelected((s) => (checked ? s.filter((x) => x !== d.duid) : [...s, d.duid!]))} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium break-words">{d.name}</span>
+                      <span className="data block text-caption text-muted">{d.ip}</span>
+                    </span>
                   </label>
                 );
               })}
@@ -104,7 +107,7 @@ export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: {
             <Field label={t("certPassword")} error={passwordError}><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" aria-invalid={!!passwordError} /></Field>
             <Field label={t("certPasswordConfirm")} error={confirmError}><input className="input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" aria-invalid={!!confirmError} /></Field>
           </div>
-          <p className="flex items-start gap-2 text-xs text-[var(--muted)]"><LockKeyhole size={14} className="mt-0.5 shrink-0" aria-hidden />{t("certPasswordHint")}</p>
+          <p className="flex items-start gap-2 text-small text-muted"><LockKeyhole size={15} className="mt-[3px] shrink-0" aria-hidden /><span className="min-w-0">{t("certPasswordHint")}</span></p>
           <Notice tone="info">{t("certSamsungNote")}</Notice>
           {error && <Notice tone="err" title={err(error)}>{error.detail && <Details label={t("technicalDetails")}>{error.detail}</Details>}</Notice>}
         </div>
@@ -141,8 +144,8 @@ export function ImportCertificateDialog({ onClose, onImported }: { onClose: () =
   };
   const fileButton = (value: string | null, set: (v: string) => void) => (
     <button type="button" onClick={() => pick(set)} className="input flex items-center gap-2 text-left">
-      <FileKey size={16} className="shrink-0 text-[var(--muted)]" aria-hidden />
-      <span className={`min-w-0 flex-1 truncate ${value ? "" : "text-[var(--faint)]"}`}>{value ? (value.startsWith("content://") ? t("certFileChosen") : value.split(/[\\/]/).pop()) : t("certChooseFile")}</span>
+      <FileKey size={16} className="shrink-0 text-muted" aria-hidden />
+      <span className={`min-w-0 flex-1 truncate ${value ? "font-medium" : "text-muted"}`} title={value ?? undefined}>{value ? (value.startsWith("content://") ? t("certFileChosen") : value.split(/[\\/]/).pop()) : t("certChooseFile")}</span>
     </button>
   );
 
@@ -150,7 +153,7 @@ export function ImportCertificateDialog({ onClose, onImported }: { onClose: () =
     <Modal title={t("certImportTitle")} onClose={onClose} wide
       footer={<><Button variant="ghost" onClick={onClose}>{t("cancel")}</Button><Button variant="primary" busy={busy} disabled={!valid} onClick={() => void run()}>{t("certImportButton")}</Button></>}>
       <div className="space-y-4">
-        <p className="text-[var(--muted)]">{t("certImportBody")}</p>
+        <div className="flex items-start gap-3"><IconTile size="sm"><FileKey size={17} aria-hidden /></IconTile><p className="min-w-0 flex-1 text-muted">{t("certImportBody")}</p></div>
         <Field label={t("certProfileName")} hint={t("certProfileHint")} error={!validProfileName(name.trim()) ? t("certInvalidProfile") : null}><input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" spellCheck={false} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("certAuthorFile")}>{fileButton(author, setAuthor)}</Field>

@@ -5,6 +5,9 @@
     <!-- Knowing whether the phone is on Wi-Fi before searching for TVs. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Self-update: hand a downloaded, verified EasyTizen APK to Android's package installer,
+         which asks the user to confirm. Never used for any other APK. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:icon="@mipmap/ic_launcher"

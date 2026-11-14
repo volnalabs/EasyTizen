@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM script without type declarations
-import { ASSETS, changelogSection, checkVersion, parseVersion, renderNotes, repoVersions, verifyAssets } from "./release.mjs";
+import { ASSETS, changelogSection, checkVersion, parseVersion, renderNotes, repoVersions, UPDATER_ASSETS, updaterManifest, verifyAssets } from "./release.mjs";
 
 describe("release helpers", () => {
   it("parses versions strictly", () => {
@@ -28,6 +28,31 @@ describe("release helpers", () => {
     writeFileSync(join(dir, "EasyTizen-Android.apk"), "stub");
     writeFileSync(join(dir, "EasyTizen-Android.aab"), "x");
     expect(verifyAssets(dir)).toEqual(["too small to be a real installer: EasyTizen-Android.apk", "unexpected file: EasyTizen-Android.aab"]);
+  });
+
+  it("requires the complete set of signed update artifacts — or none of them", () => {
+    const dir = mkdtempSync(join(tmpdir(), "easytizen-updater-"));
+    for (const { file, minBytes } of ASSETS) writeFileSync(join(dir, file), Buffer.alloc(minBytes));
+    expect(verifyAssets(dir, { updater: true }).filter((p: string) => p.startsWith("missing update")).length).toBe(UPDATER_ASSETS.filter((a: { optional?: boolean }) => !a.optional).length);
+    writeFileSync(join(dir, "EasyTizen-Android.apk.sig"), "x".repeat(200));
+    expect(verifyAssets(dir)).toEqual(["update artifact without a signed build: EasyTizen-Android.apk.sig"]);
+    for (const { file, minBytes = 200 } of UPDATER_ASSETS) writeFileSync(join(dir, file), file.endsWith(".sig") ? `sig-of-${file}` .padEnd(200, ".") : Buffer.alloc(minBytes));
+    expect(verifyAssets(dir, { updater: true })).toEqual([]);
+    writeFileSync(join(dir, "latest.json"), "{}");
+    expect(verifyAssets(dir, { updater: true })).toEqual([]);
+  });
+
+  it("writes latest.json with versioned URLs and each platform's signature", () => {
+    const dir = mkdtempSync(join(tmpdir(), "easytizen-manifest-"));
+    writeFileSync(join(dir, "EasyTizen-Linux-x64.AppImage.sig"), "SIG-LINUX\n");
+    writeFileSync(join(dir, "EasyTizen-Windows-x64-Setup.exe.sig"), "SIG-WIN");
+    const m = updaterManifest(dir, "1.2.0", { notes: "Changes", pubDate: "2026-12-01T00:00:00Z" });
+    expect(m.version).toBe("1.2.0");
+    expect(Object.keys(m.platforms).sort()).toEqual(["linux-x86_64", "linux-x86_64-appimage", "windows-x86_64"]);
+    expect(m.platforms["windows-x86_64"]).toEqual({ signature: "SIG-WIN", url: "https://github.com/volnalabs/TV-Deploy/releases/download/v1.2.0/EasyTizen-Windows-x64-Setup.exe" });
+    expect(m.platforms["linux-x86_64"].signature).toBe("SIG-LINUX");
+    // The app looks for exactly this file in the newest release.
+    expect(readFileSync("src-tauri/src/updates.rs", "utf8")).toContain("releases/latest/download/latest.json");
   });
 
   it("every published file name is used by the README and the in-app update check", () => {
