@@ -4,10 +4,12 @@
  * emulates one TV on the network. It is never used inside the packaged application.
  *
  * `?demo=fresh` starts from first-run state; `?platform=android` mimics the phone build.
+ * `?update=available` announces a newer release, `?checks=off` starts with the additional
+ * package checks turned off and `?checks=fail` makes the demo package fail one of them.
  */
 import type {
   AppInfo, CertificateProfile, ConnectOutcome, HistoryEntry, InstallResult, OpenedPackage, Outcome, ScanData,
-  SdkPreflight, Settings, ToolchainStatus, UpdateInfo,
+  ExtraChecks, SdkPreflight, Settings, ToolchainStatus, UpdateInfo, UpdateReady, UpdateStatus,
 } from "../types";
 
 declare const __APP_VERSION__: string;
@@ -15,6 +17,8 @@ const VERSION = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "0.0.0";
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 const android = params.get("platform") === "android";
 const fresh = params.get("demo") === "fresh";
+const updateAvailable = params.get("update") === "available";
+const checksFail = params.get("checks") === "fail";
 const TV = { ip: "192.168.1.57", port: 26101, duid: "QK4EMULATEDTV0001", model: "Tizen TV (emulated)" };
 const now = () => Math.floor(Date.now() / 1000);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -36,6 +40,8 @@ const settings: Settings = {
   onboarding_done: !fresh,
   check_updates: true,
   pending_sdk_install: null,
+  extra_package_checks: params.get("checks") !== "off",
+  last_update_check: fresh ? null : now() - 3 * 3600,
 };
 let sdkReady = !fresh;
 let history: HistoryEntry[] = fresh ? [] : [
@@ -131,6 +137,31 @@ const handlers: Record<string, (a: Args) => unknown> = {
   clear_history: () => { history = []; },
   diagnostics_report: () => `EasyTizen ${VERSION} — diagnostics (demo mode)\nPlatform: browser\nEngine: demo\nLocal address: 192.168.1.23 (subnet 192.168.1.x)\n\nSaved TVs: 2\n  192.168.1.57:26101  model=Tizen TV (emulated)  duid=…0001\n  192.168.1.84:26101  model=Tizen TV (emulated)  duid=…0002\n\nCertificate profiles: 1\n  EasyTizen-57  engine=Sdk  tvs=…0001`,
   save_text_file: () => undefined,
+  verify_package: async (a): Promise<ExtraChecks> => {
+    await wait(300);
+    if (!settings.extra_package_checks) return { enabled: false, ran: [], findings: [] };
+    const ran: ExtraChecks["ran"] = ["app_id", "entry_point", "native_code", "duplicates", ...(a.asIs ? ["signature" as const] : [])];
+    return { enabled: true, ran, findings: checksFail ? [{ check: "native_code", code: "native_code", detail: "lib/helper.so (ELF)", blocking: true }] : [] };
+  },
+  set_extra_package_checks: (a) => { settings.extra_package_checks = a.enabled; },
+  update_check: async (): Promise<UpdateStatus> => {
+    await wait(700);
+    settings.last_update_check = now();
+    const latest = updateAvailable ? "1.0.0" : VERSION;
+    return {
+      current: VERSION, latest, available: updateAvailable,
+      notes: updateAvailable ? "• Redesigned interface for desktop and Android\n• Automatic updates\n• Additional package checks can be turned off in Settings" : null,
+      published_at: new Date(Date.now() - 86400_000).toISOString(), size: android ? 18_400_000 : 48_200_000,
+      release_url: `https://github.com/volnalabs/TV-Deploy/releases/tag/v${latest}`, download_url: "https://github.com/volnalabs/TV-Deploy/releases/latest",
+      install: android ? "apk" : "self", manual_reason: null, checked_at: now(),
+    };
+  },
+  update_download: async (a): Promise<UpdateReady> => {
+    for (let i = 1; i <= 20; i++) { await wait(80); emit("update-progress", { op_id: a.opId, downloaded: i * 2_400_000, total: 48_000_000 }); }
+    return { version: "1.0.0", apply: android ? "apk" : "restart" };
+  },
+  update_apply: () => undefined,
+  update_open_permission_settings: () => undefined,
   check_for_update: (): UpdateInfo => ({ current: VERSION, latest: VERSION, update_available: false, release_url: "https://github.com/volnalabs/TV-Deploy/releases/latest", download_url: "https://github.com/volnalabs/TV-Deploy/releases/latest" }),
   open_external: (a) => { window.open(a.url, "_blank", "noopener"); },
 };

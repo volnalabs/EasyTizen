@@ -11,7 +11,7 @@ import type { ApiError, SdkPreflight, SdkProgress } from "../types";
  *  resume, folder choice with a free-space check, or pointing at an existing SDK. */
 export function ToolsPanel({ onReady }: { onReady?: () => void }) {
   const { t, lang, err } = useI18n();
-  const { tool, reloadTool, refresh } = useApp();
+  const { tool, reloadTool, refresh, setBusy: markBusy } = useApp();
   const [found, setFound] = useState<string[]>([]);
   const [folder, setFolder] = useState<string | null>(null);
   const [check, setCheck] = useState<SdkPreflight | null>(null);
@@ -22,6 +22,7 @@ export function ToolsPanel({ onReady }: { onReady?: () => void }) {
   const [stopped, setStopped] = useState(false);
   const op = useRef<string | null>(null);
 
+  useEffect(() => { markBusy("sdk", busy); return () => markBusy("sdk", false); }, [busy, markBusy]);
   useEffect(() => { api.findExistingSdk().then(setFound).catch(() => setFound([])); }, []);
   useEffect(() => { api.sdkPreflight(folder).then(setCheck).catch(() => setCheck(null)); }, [folder, tool?.pending_install]);
   useEffect(() => {
@@ -67,11 +68,11 @@ export function ToolsPanel({ onReady }: { onReady?: () => void }) {
 
   if (ready) {
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <IconTile tone="ok"><CheckCircle2 size={20} aria-hidden /></IconTile>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-[1_1_12rem]">
           <p className="font-semibold">{t("toolsReady")}</p>
-          <p className="selectable truncate text-xs text-[var(--muted)]">{tool.sdk_path}</p>
+          <p className="selectable data text-caption text-muted">{tool.sdk_path}</p>
         </div>
         <Button size="sm" disabled={busy} onClick={async () => { const p = await pickFolder(); if (p) await useExisting(p); }}>{t("toolsChangeFolder")}</Button>
         {error && <span className="sr-only">{err(error)}</span>}
@@ -85,50 +86,50 @@ export function ToolsPanel({ onReady }: { onReady?: () => void }) {
         <IconTile><Wrench size={20} aria-hidden /></IconTile>
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{t("toolsNeeded")}</p>
-          <p className="mt-0.5 text-[var(--muted)]">{t("toolsBody")}</p>
+          <p className="mt-0.5 text-muted">{t("toolsBody")}</p>
         </div>
       </div>
       {brokenBuild && <Notice tone="err">{brokenBuild}</Notice>}
       {tool.pending_install && !busy && <Notice tone="info">{t("toolsPending")}</Notice>}
 
       {busy && op.current ? (
-        <div className="fade-up rounded-xl bg-[var(--surface-2)] p-4">
-          <div className="mb-2 flex items-center gap-2">
+        <div className="fade-up rounded-[12px] border border-line bg-surface-2 p-4" aria-live="polite">
+          <div className="mb-2.5 flex flex-wrap items-center gap-2">
             <Pill tone="accent">{progress?.phase === "tv_extension" ? t("toolsPhaseTv") : t("toolsPhaseSdk")}</Pill>
-            <span className="min-w-0 flex-1 truncate text-[13px]">{progress?.step ?? t("toolsWorking")}</span>
-            {progress?.current != null && progress.total != null && <span className="text-xs text-[var(--muted)]">{t("toolsPackages", { current: progress.current, total: progress.total })}</span>}
+            <span className="min-w-0 flex-1 text-small break-words">{progress?.step ?? t("toolsWorking")}</span>
+            {progress?.current != null && progress.total != null && <span className="text-caption text-muted">{t("toolsPackages", { current: progress.current, total: progress.total })}</span>}
           </div>
           <Progress value={fraction} label={t("toolsTitle")} />
-          <p className="mt-3 text-xs text-[var(--muted)]">{t("toolsKeepOpen")}</p>
+          <p className="mt-3 text-caption text-muted">{t("toolsKeepOpen")}</p>
           {log.length > 0 && <Details label={t("technicalDetails")}>{log.slice(-12).join("\n")}</Details>}
           <div className="mt-3"><Button size="sm" onClick={() => op.current && void api.cancel(op.current)}>{t("cancel")}</Button></div>
         </div>
       ) : (
         <>
           {check && !tool.sdk_ready && (
-            <div className="rounded-xl border border-[var(--border)] p-3.5">
-              <div className="flex items-center gap-3">
-                <HardDrive size={18} className="shrink-0 text-[var(--muted)]" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-[var(--muted)]">{t("toolsFolder")}</p>
-                  <p className="selectable truncate font-medium">{check.path}</p>
+            <div className="rounded-[12px] border border-line p-3.5">
+              <div className="flex flex-wrap items-center gap-3">
+                <HardDrive size={18} className="shrink-0 text-muted" aria-hidden />
+                <div className="min-w-0 flex-[1_1_10rem]">
+                  <p className="text-caption text-muted">{t("toolsFolder")}</p>
+                  <p className="selectable data font-medium">{check.path}</p>
                 </div>
                 <Button size="sm" onClick={async () => { const p = await pickFolder(); if (p) setFolder(p); }}>{t("toolsChangeFolder")}</Button>
               </div>
               {check.path_error
-                ? <p role="alert" className="mt-2 text-[13px] text-[var(--err)]">{t("toolsBadPath")}</p>
+                ? <p role="alert" className="mt-2 text-small text-err">{t("toolsBadPath")}</p>
                 : check.free_bytes != null && (check.enough_space
-                  ? <p className="mt-2 text-xs text-[var(--muted)]">{t("toolsFree", { free: bytes(check.free_bytes), need: bytes(check.required_bytes) })}</p>
-                  : <p role="alert" className="mt-2 text-[13px] text-[var(--err)]">{t("toolsNoSpace", { free: bytes(check.free_bytes), need: bytes(check.required_bytes) })}</p>)}
-              {!check.shell_ok && <p role="alert" className="mt-2 text-[13px] text-[var(--err)]">{t("toolsNeedBash")}</p>}
+                  ? <p className="mt-2 text-caption text-muted">{t("toolsFree", { free: bytes(check.free_bytes), need: bytes(check.required_bytes) })}</p>
+                  : <p role="alert" className="mt-2 text-small text-err">{t("toolsNoSpace", { free: bytes(check.free_bytes), need: bytes(check.required_bytes) })}</p>)}
+              {!check.shell_ok && <p role="alert" className="mt-2 text-small text-err">{t("toolsNeedBash")}</p>}
             </div>
           )}
           {found.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-medium tracking-wide text-[var(--muted)] uppercase">{t("toolsFoundSdk")}</p>
+              <p className="eyebrow mb-1.5">{t("toolsFoundSdk")}</p>
               {found.map((p) => (
-                <div key={p} className="flex items-center gap-3 border-t border-[var(--border)] py-2">
-                  <span className="selectable min-w-0 flex-1 truncate">{p}</span>
+                <div key={p} className="flex items-center gap-3 border-t border-line py-2">
+                  <span className="selectable data min-w-0 flex-1">{p}</span>
                   <Button size="sm" busy={busy} disabled={!!brokenBuild} onClick={() => useExisting(p)}>{t("toolsUse")}</Button>
                 </div>
               ))}
@@ -138,7 +139,7 @@ export function ToolsPanel({ onReady }: { onReady?: () => void }) {
           {error && <Notice tone="err" title={error.code === "sdk_invalid" ? t("toolsInvalid") : err(error)}>{error.detail && <Details label={t("technicalDetails")}>{error.detail}</Details>}</Notice>}
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" busy={busy} disabled={!!brokenBuild || (blocked && !tool.sdk_ready)} onClick={() => void install()}>
-              <Wrench size={16} aria-hidden />
+              {!busy && <Wrench size={16} aria-hidden />}
               {tool.sdk_ready ? t("toolsInstallExtension") : tool.pending_install || stopped ? t("toolsResume") : t("toolsInstall")}
             </Button>
             <Button disabled={busy || !!brokenBuild} onClick={async () => { const p = await pickFolder(); if (p) await useExisting(p); }}><FolderOpen size={16} aria-hidden />{t("toolsChooseExisting")}</Button>

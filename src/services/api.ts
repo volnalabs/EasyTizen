@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   ApiError, AppInfo, CertificateProfile, ConnectOutcome, Engine, HistoryEntry, InstallResult, OpenedPackage, Outcome,
-  ScanData, SdkPreflight, Settings, ToolchainStatus, UpdateInfo,
+  ExtraChecks, ScanData, SdkPreflight, Settings, ToolchainStatus, UpdateInfo, UpdateReady, UpdateStatus,
 } from "../types";
 import { demoInvoke, demoListen } from "./demo";
 
@@ -28,6 +28,8 @@ export function toApiError(e: unknown): ApiError {
 export interface InstallArgs {
   packagePath: string; profileName: string | null; ip: string; port: number; duid: string | null;
   runAfterInstall: boolean; resign: boolean; password: string | null;
+  /** Required when the additional checks are off: the user confirmed installing without them. */
+  checksSkipConfirmed?: boolean;
 }
 
 /** Typed bridge to the Rust backend. The frontend has no other way to touch the system. */
@@ -53,6 +55,9 @@ export const api = {
   renameDevice: (ip: string, port: number, name: string) => call<void>("rename_device", { ip, port, name }),
 
   openPackage: (source: string) => call<OpenedPackage>("open_package", { source }),
+  /** Additional checks; mandatory file safety already ran in openPackage. `asIs`: installing without re-signing. */
+  verifyPackage: (path: string, asIs: boolean) => call<ExtraChecks>("verify_package", { path, asIs }),
+  setExtraPackageChecks: (enabled: boolean) => call<void>("set_extra_package_checks", { enabled }),
 
   createCertificate: (args: { profileName: string; identity: string; password: string; duids: string[] }, opId: string) =>
     call<CertificateProfile>("create_certificate", { args, opId }),
@@ -68,6 +73,12 @@ export const api = {
   diagnosticsReport: () => call<string>("diagnostics_report"),
   saveTextFile: (path: string, content: string) => call<void>("save_text_file", { path, content }),
   checkForUpdate: () => call<UpdateInfo>("check_for_update"),
+  updateCheck: () => call<UpdateStatus>("update_check"),
+  /** Downloads and verifies the update. `background`: refused with update_busy while the TV is busy. */
+  updateDownload: (opId: string, background: boolean) => call<UpdateReady>("update_download", { opId, background }),
+  /** Restart (desktop), run the installer (Windows) or open Android's installer. */
+  updateApply: () => call<void>("update_apply"),
+  updateOpenPermissionSettings: () => call<void>("update_open_permission_settings"),
   openExternal: (url: string) => call<void>("open_external", { url }),
 };
 
