@@ -1,4 +1,4 @@
-# Test report — EasyTizen 0.9.0 + interface redesign
+# Test report — EasyTizen 0.9.1
 
 Date: 2026-11-14. Environment of the local runs: Linux x86_64 (Ubuntu 24.04 container), Rust 1.97, Node.js 22.23, OpenSSL 3, xmlsec1, Android SDK platform 36 / NDK 27.2.
 
