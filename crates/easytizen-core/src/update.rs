@@ -1,7 +1,21 @@
-//! Update check: asks GitHub which release is the latest and compares versions.
-//! Nothing is downloaded or installed automatically — the user is offered the link.
+//! Updates: which release is the latest, and the integrity checks for downloaded files.
+//!
+//! * [`check`] — the original lightweight check (latest tag vs. running version).
+//! * [`latest_release`] — the same request, with notes, publication date and asset sizes.
+//! * [`download`] — streams a release asset to disk with a size cap, reporting progress and
+//!   computing its SHA-256 on the way.
+//! * [`sha256_from_sums`] / [`verify_minisign`] — the checks applied before a downloaded file is
+//!   handed to an installer: the checksum published in the release's `SHA256SUMS.txt` and,
+//!   when the build carries the project's update key, the minisign signature made in CI.
+//!
+//! The desktop self-update itself is done by the Tauri updater (same minisign key); see
+//! `src-tauri/src/updates.rs`.
 
+use base64::Engine;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
+use std::io::{Read, Write};
+use std::path::Path;
 use std::time::Duration;
 
 pub const REPOSITORY: &str = "volnalabs/TV-Deploy";
@@ -60,8 +74,7 @@ pub fn build_info(current: &str, latest_tag: &str, os: &str, arch: &str) -> Upda
     }
 }
 
-/// One HTTPS GET to api.github.com. No identifiers are sent besides a generic User-Agent.
-pub fn check(current: &str) -> Result<UpdateInfo, String> {
+fn latest_release_json() -> Result<serde_json::Value, String> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(15)))
         .http_status_as_error(false)
@@ -82,9 +95,16 @@ pub fn check(current: &str) -> Result<UpdateInfo, String> {
     }
     let body = response
         .body_mut()
+        .with_config()
+        .limit(4 * 1024 * 1024)
         .read_to_string()
         .map_err(|_| "network".to_string())?;
-    let json: serde_json::Value = serde_json::from_str(&body).map_err(|_| "network".to_string())?;
+    serde_json::from_str(&body).map_err(|_| "network".to_string())
+}
+
+/// One HTTPS GET to api.github.com. No identifiers are sent besides a generic User-Agent.
+pub fn check(current: &str) -> Result<UpdateInfo, String> {
+    let json = latest_release_json()?;
     let tag = json
         .get("tag_name")
         .and_then(|t| t.as_str())
@@ -98,6 +118,200 @@ pub fn check(current: &str) -> Result<UpdateInfo, String> {
         std::env::consts::OS,
         std::env::consts::ARCH,
     ))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseAsset {
+    pub name: String,
+    pub size: u64,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseInfo {
+    /// Version without the leading `v`.
+    pub version: String,
+    pub tag: String,
+    pub notes: Option<String>,
+    pub published_at: Option<String>,
+    pub assets: Vec<ReleaseAsset>,
+}
+
+impl ReleaseInfo {
+    pub fn asset(&self, name: &str) -> Option<&ReleaseAsset> {
+        self.assets.iter().find(|a| a.name == name)
+    }
+}
+
+const RELEASE_DOWNLOAD_PREFIX: &str = "https://github.com/volnalabs/TV-Deploy/releases/download/";
+
+/// Reads the GitHub API answer. Only assets of this repository's releases are accepted, so a
+/// download can never be pointed elsewhere.
+pub fn parse_release(json: &serde_json::Value) -> Result<ReleaseInfo, String> {
+    let tag = json
+        .get("tag_name")
+        .and_then(|t| t.as_str())
+        .ok_or("no_release")?;
+    if json.get("draft").and_then(|d| d.as_bool()) == Some(true) || parse_version(tag).is_none() {
+        return Err("no_release".into());
+    }
+    let text = |key: &str| {
+        json.get(key)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|s| !s.trim().is_empty())
+    };
+    let assets = json
+        .get("assets")
+        .and_then(|a| a.as_array())
+        .map(|list| {
+            list.iter()
+                .filter_map(|a| {
+                    let url = a.get("browser_download_url")?.as_str()?;
+                    let name = a.get("name")?.as_str()?.to_string();
+                    let size = a.get("size")?.as_u64()?;
+                    url.starts_with(RELEASE_DOWNLOAD_PREFIX)
+                        .then(|| ReleaseAsset {
+                            name,
+                            size,
+                            url: url.to_string(),
+                        })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(ReleaseInfo {
+        version: tag.trim_start_matches(['v', 'V']).to_string(),
+        tag: tag.to_string(),
+        notes: text("body").map(|b| b.chars().take(20_000).collect()),
+        published_at: text("published_at"),
+        assets,
+    })
+}
+
+/// The latest published release, with notes and asset sizes.
+pub fn latest_release() -> Result<ReleaseInfo, String> {
+    parse_release(&latest_release_json()?)
+}
+
+/// The SHA-256 published for `file` in a `SHA256SUMS.txt` (`<hex>  <name>` per line).
+pub fn sha256_from_sums(sums: &str, file: &str) -> Option<[u8; 32]> {
+    sums.lines().find_map(|line| {
+        let (hex, name) = line.trim().split_once(char::is_whitespace)?;
+        if name.trim().trim_start_matches('*') != file || hex.len() != 64 {
+            return None;
+        }
+        let mut out = [0u8; 32];
+        for (i, byte) in out.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(hex.get(i * 2..i * 2 + 2)?, 16).ok()?;
+        }
+        Some(out)
+    })
+}
+
+/// Verifies a minisign signature as produced by `tauri signer sign` (both the public key and
+/// the `.sig` file are base64 of the minisign text format).
+pub fn verify_minisign(
+    data: &[u8],
+    signature_b64: &str,
+    public_key_b64: &str,
+) -> Result<(), String> {
+    let decode = |text: &str| {
+        base64::engine::general_purpose::STANDARD
+            .decode(text.trim())
+            .ok()
+            .and_then(|b| String::from_utf8(b).ok())
+    };
+    let key = decode(public_key_b64)
+        .and_then(|k| minisign_verify::PublicKey::decode(&k).ok())
+        .ok_or("signature")?;
+    let signature = decode(signature_b64)
+        .and_then(|s| minisign_verify::Signature::decode(&s).ok())
+        .ok_or("signature")?;
+    key.verify(data, &signature, false)
+        .map_err(|_| "signature".to_string())
+}
+
+fn agent(timeout: Duration) -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_global(Some(timeout))
+        .http_status_as_error(false)
+        .build()
+        .into()
+}
+
+/// Small text asset (checksums, signatures) of this repository's releases.
+pub fn fetch_text(url: &str) -> Result<String, String> {
+    if !url.starts_with(RELEASE_DOWNLOAD_PREFIX) {
+        return Err("network".into());
+    }
+    let mut response = agent(Duration::from_secs(30))
+        .get(url)
+        .header("User-Agent", "EasyTizen")
+        .call()
+        .map_err(|_| "network".to_string())?;
+    if response.status().as_u16() != 200 {
+        return Err("network".into());
+    }
+    response
+        .body_mut()
+        .with_config()
+        .limit(1024 * 1024)
+        .read_to_string()
+        .map_err(|_| "network".to_string())
+}
+
+/// Streams a release asset into `destination`, refusing more than `cap` bytes. Returns its
+/// SHA-256. `progress(downloaded, total)` is called as data arrives.
+pub fn download(
+    url: &str,
+    destination: &Path,
+    cap: u64,
+    progress: &mut dyn FnMut(u64, Option<u64>),
+) -> Result<[u8; 32], String> {
+    if !url.starts_with(RELEASE_DOWNLOAD_PREFIX) {
+        return Err("network".into());
+    }
+    let mut response = agent(Duration::from_secs(30 * 60))
+        .get(url)
+        .header("User-Agent", "EasyTizen")
+        .call()
+        .map_err(|_| "network".to_string())?;
+    if response.status().as_u16() != 200 {
+        return Err("network".into());
+    }
+    let total = response
+        .headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok());
+    if total.is_some_and(|t| t > cap) {
+        return Err("too_large".into());
+    }
+    let mut reader = response.body_mut().with_config().limit(cap + 1).reader();
+    let mut file = std::fs::File::create(destination).map_err(|_| "io".to_string())?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 256 * 1024];
+    let mut done = 0u64;
+    loop {
+        let n = reader
+            .read(&mut buffer)
+            .map_err(|_| "network".to_string())?;
+        if n == 0 {
+            break;
+        }
+        done += n as u64;
+        if done > cap {
+            drop(file);
+            let _ = std::fs::remove_file(destination);
+            return Err("too_large".into());
+        }
+        hasher.update(&buffer[..n]);
+        file.write_all(&buffer[..n]).map_err(|_| "io".to_string())?;
+        progress(done, total);
+    }
+    file.sync_all().map_err(|_| "io".to_string())?;
+    Ok(hasher.finalize().into())
 }
 
 #[cfg(test)]
@@ -116,6 +330,59 @@ mod tests {
         assert!(!is_newer("v1.0.0", "1.0.0"));
         assert!(!is_newer("v0.9.0", "1.0.0"));
         assert!(!is_newer("garbage", "1.0.0"));
+    }
+
+    #[test]
+    fn release_answer_is_parsed_and_foreign_assets_are_dropped() {
+        let json = serde_json::json!({
+            "tag_name": "v1.2.0", "draft": false, "body": "Fixes", "published_at": "2026-12-01T10:00:00Z",
+            "assets": [
+                { "name": "EasyTizen-Android.apk", "size": 18_000_000,
+                  "browser_download_url": "https://github.com/volnalabs/TV-Deploy/releases/download/v1.2.0/EasyTizen-Android.apk" },
+                { "name": "evil.apk", "size": 1, "browser_download_url": "https://evil.example/evil.apk" }
+            ]
+        });
+        let r = parse_release(&json).unwrap();
+        assert_eq!(r.version, "1.2.0");
+        assert_eq!(r.notes.as_deref(), Some("Fixes"));
+        assert_eq!(r.assets.len(), 1);
+        assert_eq!(r.asset("EasyTizen-Android.apk").unwrap().size, 18_000_000);
+        assert!(r.asset("evil.apk").is_none());
+        let draft = serde_json::json!({ "tag_name": "v1.2.0", "draft": true });
+        assert!(parse_release(&draft).is_err());
+        assert!(fetch_text("https://evil.example/SHA256SUMS.txt").is_err());
+    }
+
+    #[test]
+    fn checksums_are_read_from_sha256sums() {
+        let hex = "aa".repeat(32);
+        let sums = format!(
+            "{}  EasyTizen-Linux-x64.deb\n{hex}  EasyTizen-Android.apk\n",
+            "bb".repeat(32)
+        );
+        assert_eq!(
+            sha256_from_sums(&sums, "EasyTizen-Android.apk"),
+            Some([0xaa; 32])
+        );
+        assert_eq!(sha256_from_sums(&sums, "EasyTizen-Android"), None);
+        assert_eq!(
+            sha256_from_sums("zz  EasyTizen-Android.apk", "EasyTizen-Android.apk"),
+            None
+        );
+    }
+
+    // A key pair generated with `tauri signer generate` for this test only (never used for
+    // releases), and the signature of b"EasyTizen update test" made with `tauri signer sign`.
+    const TEST_PUBKEY: &str = include_str!("../tests/fixtures/minisign/test.pub");
+    const TEST_SIGNATURE: &str = include_str!("../tests/fixtures/minisign/payload.txt.sig");
+
+    #[test]
+    fn minisign_signatures_are_verified() {
+        let payload = b"EasyTizen update test\n";
+        verify_minisign(payload, TEST_SIGNATURE, TEST_PUBKEY).unwrap();
+        assert!(verify_minisign(b"EasyTizen update tesT\n", TEST_SIGNATURE, TEST_PUBKEY).is_err());
+        assert!(verify_minisign(payload, "not base64", TEST_PUBKEY).is_err());
+        assert!(verify_minisign(payload, TEST_SIGNATURE, "bm90IGEga2V5").is_err());
     }
 
     #[test]

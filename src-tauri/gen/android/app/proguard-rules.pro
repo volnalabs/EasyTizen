@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# EasyTizen's own Tauri plugin is created by reflection from Rust.
+-keep class io.github.volnalabs.easytizen.ApkInstallerPlugin { *; }
+-keep class io.github.volnalabs.easytizen.InstallApkArgs { *; }
