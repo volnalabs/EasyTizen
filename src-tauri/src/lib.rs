@@ -63,7 +63,9 @@ pub fn run() {
     if let Some(key) = updates::pubkey() {
         context.config_mut().plugins.0.insert(
             "updater".into(),
-            serde_json::json!({ "pubkey": key, "endpoints": [updates::MANIFEST_URL] }),
+            // Signatures made by the bundler carry the version they were made for; requiring it
+            // stops a tampered manifest from pairing a new version number with an old artifact.
+            serde_json::json!({ "pubkey": key, "endpoints": [updates::MANIFEST_URL], "requireSignedVersion": true }),
         );
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
