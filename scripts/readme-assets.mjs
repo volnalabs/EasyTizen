@@ -119,3 +119,35 @@ for (const [name, ic, ruTitle, ruSub, enTitle, enSub] of cards) {
   }
 }
 console.log("README artwork written to", OUT);
+
+// ---- language switch (top of both READMEs) ----
+// Large, tappable buttons. Flags are drawn as shapes so they render the same everywhere
+// (emoji flags do not show on Windows). The active variant marks the language being read.
+function flagRu(x, y) {
+  return `<g transform="translate(${x} ${y})"><clipPath id="fr"><rect width="60" height="40" rx="7"/></clipPath><g clip-path="url(#fr)"><rect width="60" height="13.4" fill="#FFFFFF"/><rect y="13.3" width="60" height="13.4" fill="#0039A6"/><rect y="26.6" width="60" height="13.4" fill="#D52B1E"/></g><rect x=".5" y=".5" width="59" height="39" rx="6.5" fill="none" stroke="#000" stroke-opacity=".18"/></g>`;
+}
+function flagUk(x, y) {
+  return `<g transform="translate(${x} ${y})"><clipPath id="fu"><rect width="60" height="40" rx="7"/></clipPath><g clip-path="url(#fu)"><rect width="60" height="40" fill="#012169"/>`
+    + `<path d="M0 0L60 40M60 0L0 40" stroke="#FFFFFF" stroke-width="8"/><path d="M0 0L60 40M60 0L0 40" stroke="#C8102E" stroke-width="2.6"/>`
+    + `<path d="M30 0v40M0 20h60" stroke="#FFFFFF" stroke-width="13"/><path d="M30 0v40M0 20h60" stroke="#C8102E" stroke-width="7.5"/></g>`
+    + `<rect x=".5" y=".5" width="59" height="39" rx="6.5" fill="none" stroke="#000" stroke-opacity=".18"/></g>`;
+}
+function langButton(lang, active) {
+  const t = lang === "ru"
+    ? { title: "Русская версия", sub: active ? "Вы читаете README на русском" : "Открыть README на русском", label: "Русская версия README" }
+    : { title: "English version", sub: active ? "You are reading the English README" : "Open the README in English", label: "English version of the README" };
+  const frame = active
+    ? `<rect x="1" y="1" width="598" height="110" rx="22" fill="url(#lb)" stroke="url(#g)" stroke-width="2.5"/>`
+    : `<rect x="1" y="1" width="598" height="110" rx="22" fill="${C.surface}" stroke="${C.border}" stroke-width="2"/>`;
+  const mark = active
+    ? `<circle cx="556" cy="56" r="17" fill="url(#g)"/><path d="M548 56.5l5.5 5.5 10-10.5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
+    : icon("chevron", 542, 42, 1.17, C.faint, 2);
+  return svg(600, 112, t.label,
+    `<defs>${grad()}<linearGradient id="lb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2040"/><stop offset="1" stop-color="#11262A"/></linearGradient></defs>`
+    + frame + (lang === "ru" ? flagRu(30, 36) : flagUk(30, 36))
+    + text(114, 52, t.title, 27, 650, C.text) + text(114, 82, t.sub, 17, 400, active ? "#C9D0E4" : C.muted) + mark);
+}
+for (const lang of ["ru", "en"]) {
+  save(`lang-${lang}`, langButton(lang, false));
+  save(`lang-${lang}-active`, langButton(lang, true));
+}

@@ -4,6 +4,10 @@
 
 <br><br>
 
+<a href="README.md"><img src="docs/readme/lang-ru.svg" width="49%" alt="🇷🇺 Русская версия"></a>&nbsp;<a href="README.en.md"><img src="docs/readme/lang-en-active.svg" width="49%" alt="🇬🇧 English version — you are reading it"></a>
+
+<br>
+
 [![Latest version](https://img.shields.io/github/v/release/volnalabs/TV-Deploy?label=version&color=3F5BF6&style=for-the-badge)](https://github.com/volnalabs/TV-Deploy/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/volnalabs/TV-Deploy/ci.yml?branch=main&label=build&style=for-the-badge&color=1E2230)](https://github.com/volnalabs/TV-Deploy/actions/workflows/ci.yml)
 [![Downloads](https://img.shields.io/github/downloads/volnalabs/TV-Deploy/total?label=downloads&color=1E2230&style=for-the-badge)](https://github.com/volnalabs/TV-Deploy/releases)
@@ -11,13 +15,12 @@
 
 **[Download](#download)** &nbsp;·&nbsp; [Features](#features) &nbsp;·&nbsp; [Screenshots](#look) &nbsp;·&nbsp; **[Installation](#install)** &nbsp;·&nbsp; [Android](#android) &nbsp;·&nbsp; [Windows](#windows) &nbsp;·&nbsp; [macOS](#macos) &nbsp;·&nbsp; [Linux](#linux) &nbsp;·&nbsp; [Samsung TV](#samsung-tv) &nbsp;·&nbsp; [FAQ](#faq) &nbsp;·&nbsp; [For developers](#dev)
 
-🇷🇺 [Русская версия](README.md)
 
 <br>
 
-<img src="docs/img/desktop-ready.png" width="100%" alt="EasyTizen: TV connected, app checked, ready to install">
+<img src="docs/img/en/desktop-check.png" width="100%" alt="EasyTizen: TV connected, package checked, ready to install">
 
-<sub>Three steps on one screen: the TV is connected, the file is checked — press “Install on TV”. (Screenshots show the Russian interface; the app also ships in English.)</sub>
+<sub>The TV is connected and the file passed the mandatory and the additional checks — press “Install on TV”.</sub>
 
 </div>
 
@@ -126,8 +129,8 @@ Already have `author.p12` and `distributor.p12` from Tizen Studio? Plug them in.
 
 <img src="docs/readme/f-check.svg" width="52" height="52" align="left" alt="">
 
-**Safe WGT inspection**<br>
-Checks the archive before installing: structure, `config.xml`, zip-bomb and path-traversal protection.
+**Two-layer WGT checks**<br>
+Always: archive structure, zip-bomb and path-traversal protection, safe XML. Additionally (can be turned off): app ID, start page, embedded programs, existing signature.
 
 </td>
 </tr>
@@ -180,8 +183,8 @@ A report without passwords or keys: copy it or save it to a file for a bug repor
 
 <img src="docs/readme/f-update.svg" width="52" height="52" align="left" alt="">
 
-**Update check**<br>
-Tells you about a new version and links straight to the installer for your system.
+**Automatic updates**<br>
+Downloads and verifies a signed update and applies it on restart. On Android — through the system installer. Can be turned off in Settings.
 
 </td>
 </tr>
@@ -200,20 +203,24 @@ Tells you about a new version and links straight to the installer for your syste
 
 <table>
 <tr>
-<td width="50%"><img src="docs/img/desktop-sdk.png" alt="SDK setup"><br><sub><b>SDK setup.</b> Choose how to work and install the Samsung tools with progress and cancel</sub></td>
-<td width="50%"><img src="docs/img/desktop-find.png" alt="Finding a TV"><br><sub><b>Connecting the TV.</b> Network search, manual address and saved devices</sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/desktop-welcome.png" alt="First launch"><br><sub><b>First launch.</b> Three steps, language choice, light theme</sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/desktop-find.png" alt="Finding a TV"><br><sub><b>Finding the TV.</b> Network search, manual address and saved devices</sub></td>
 </tr>
 <tr>
-<td><img src="docs/img/desktop-cert-new.png" alt="New certificate"><br><sub><b>Certificate.</b> Pick the TVs, choose a password — then sign in to Samsung in the browser</sub></td>
-<td><img src="docs/img/desktop-ready.png" alt="Choosing a WGT"><br><sub><b>Choosing a WGT.</b> App details, inspection result and signature state</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-connected.png" alt="TV connected"><br><sub><b>TV connected.</b> Model and Device ID (DUID) with copy</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-check.png" alt="Package check"><br><sub><b>WGT check.</b> Mandatory file safety plus the additional checks</sub></td>
 </tr>
 <tr>
-<td><img src="docs/img/desktop-progress.png" alt="Installing"><br><sub><b>Installation.</b> Stages: signing, connecting, sending, installing, launching</sub></td>
-<td><img src="docs/img/desktop-success.png" alt="Installed"><br><sub><b>Done.</b> The app is installed and running on the TV</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-progress.png" alt="Installing"><br><sub><b>Installation.</b> Stages: signing, sending, installing, launching</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-success.png" alt="Installed"><br><sub><b>Done.</b> The app is installed and running</sub></td>
 </tr>
 <tr>
-<td><img src="docs/img/desktop-tvs.png" alt="TVs"><br><sub><b>TVs.</b> Names, addresses, DUIDs and last connection time</sub></td>
-<td><img src="docs/img/desktop-history.png" alt="History"><br><sub><b>History.</b> Results with explained errors</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-cert-new.png" alt="New certificate"><br><sub><b>Certificate.</b> Pick the TVs and a password — then sign in to Samsung in the browser</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-tvs.png" alt="TVs"><br><sub><b>TVs.</b> Names, addresses, DUIDs and last connection</sub></td>
+</tr>
+<tr>
+<td valign="top"><img src="docs/img/en/desktop-updates.png" alt="Updates"><br><sub><b>Updates.</b> Automatic mode, last check, verified signature</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-security.png" alt="Security check"><br><sub><b>Security.</b> Turning the additional checks off requires confirmation</sub></td>
 </tr>
 </table>
 
@@ -221,20 +228,26 @@ Tells you about a new version and links straight to the installer for your syste
 
 <table>
 <tr>
-<td width="25%"><img src="docs/img/android-welcome.png" alt="Welcome"><br><sub><b>First launch</b></sub></td>
-<td width="25%"><img src="docs/img/android-devmode.png" alt="Developer Mode"><br><sub><b>TV guide</b> with the phone's address</sub></td>
-<td width="25%"><img src="docs/img/android-find.png" alt="Finding a TV"><br><sub><b>Finding the TV</b></sub></td>
-<td width="25%"><img src="docs/img/android-ready.png" alt="App chosen"><br><sub><b>File checked</b></sub></td>
+<td width="25%" valign="top"><img src="docs/img/en/android-welcome.png" alt="First launch"><br><sub><b>First launch</b></sub></td>
+<td width="25%" valign="top"><img src="docs/img/en/android-home.png" alt="Home"><br><sub><b>Home</b></sub></td>
+<td width="25%" valign="top"><img src="docs/img/en/android-find.png" alt="Finding a TV"><br><sub><b>Finding the TV</b></sub></td>
+<td width="25%" valign="top"><img src="docs/img/en/android-connected.png" alt="Connected"><br><sub><b>Connected</b></sub></td>
 </tr>
 <tr>
-<td><img src="docs/img/android-progress.png" alt="Installing"><br><sub><b>Progress</b></sub></td>
-<td><img src="docs/img/android-success.png" alt="Done"><br><sub><b>Installed</b></sub></td>
-<td><img src="docs/img/android-certs.png" alt="Certificates"><br><sub><b>Certificates</b></sub></td>
-<td><img src="docs/img/desktop-welcome.png" alt="Light theme"><br><sub><b>Light theme</b> (desktop)</sub></td>
+<td valign="top"><img src="docs/img/en/android-package.png" alt="WGT chosen"><br><sub><b>File chosen</b></sub></td>
+<td valign="top"><img src="docs/img/en/android-check.png" alt="Package check"><br><sub><b>Package check</b></sub></td>
+<td valign="top"><img src="docs/img/en/android-progress.png" alt="Installing"><br><sub><b>Progress</b></sub></td>
+<td valign="top"><img src="docs/img/en/android-success.png" alt="Installed"><br><sub><b>Installed</b></sub></td>
+</tr>
+<tr>
+<td valign="top"><img src="docs/img/en/android-settings.png" alt="Settings"><br><sub><b>Settings</b></sub></td>
+<td valign="top"><img src="docs/img/en/android-updates.png" alt="Updates"><br><sub><b>Updates</b></sub></td>
+<td valign="top"><img src="docs/img/en/android-security.png" alt="Security"><br><sub><b>Security check</b></sub></td>
+<td valign="top"><img src="docs/img/en/android-devmode.png" alt="Developer Mode"><br><sub><b>TV guide</b> with the phone's address</sub></td>
 </tr>
 </table>
 
-<sub>About the screenshots: this is EasyTizen's real interface, captured automatically (<code>scripts/screenshots.mjs</code>) in demo mode — the TV, the certificate and the <i>My App</i> package are emulated, and the “demo mode” label is visible. They were taken in a browser window at desktop-window and phone-screen sizes; the app has not yet been photographed on a real phone and TV. The packaged Linux app running in a test environment: <a href="docs/img/linux-window.png">linux-window.png</a>.</sub>
+<sub>About the screenshots: this is EasyTizen's real interface in English, captured automatically (<code>scripts/screenshots.mjs</code>) in demo mode — the TV, the certificate, the <i>My App</i> package and the newer release are emulated, and the “Demo” label is visible. They were taken in a browser at desktop-window and phone-screen sizes; the app has not yet been photographed on a real phone and TV. The packaged Linux app in a test environment: <a href="docs/img/linux-window.png">linux-window.png</a>. Russian screenshots are in the <a href="README.md#look">Russian version</a>.</sub>
 
 <p align="center"><img src="docs/readme/divider.svg" width="100%" height="24" alt=""></p>
 
@@ -572,7 +585,21 @@ App data folder: Windows — `%APPDATA%\io.github.volnalabs.easytizen`, macOS �
 
 <br>
 
-At start-up the app asks GitHub for the latest version number and, if it is newer, shows a bar linking to the installer for your system. You start the download and installation yourself — there is no silent auto-update. The check can be turned off in Settings, where a “Check now” button also lives.
+Settings → **App updates**. In automatic mode (on by default) EasyTizen asks GitHub for the latest version every few hours, downloads the update and verifies its signature with the project's key. On Windows, macOS and Linux it is applied on restart — EasyTizen asks first and never restarts during an installation on the TV. On Android the downloaded APK is checked against the release checksum and handed to the system installer: Android itself asks you to confirm (and, once, to allow installs from EasyTizen). If the app came from Google Play, updates come from there. Turn the switch off and there are no background checks or downloads at all; “Check now” always works. Builds without the update-signing key (for example, ones you build yourself) never install anything by themselves and offer the installer as a download instead.
+
+</details>
+
+<details>
+<summary><b>What does EasyTizen check before installing, and can I turn it off?</b></summary>
+
+<br>
+
+There are two layers.
+
+- **Safe file handling — always.** ZIP structure, path-traversal (Zip Slip) protection, limits on file count, size and compression ratio (zip bombs), damaged archives, `config.xml` without DTDs or entities. These cannot be turned off.
+- **Additional checks — on by default.** The Tizen app ID format and its match with the package ID, the start page being present, no executable programs for other systems (ELF, Windows PE, Mach-O), no duplicate file names and — when installing without re-signing — that the existing signature matches the files. A package with problems is not installed.
+
+The additional checks can be turned off in **Settings → Security → “Additional app safety checks”**. EasyTizen asks you to confirm, shows a warning on every package and asks you to confirm that you trust the file before every installation. These are integrity and consistency checks, not an antivirus scan.
 
 </details>
 
@@ -636,7 +663,7 @@ npm test                                                   # interface and relea
 npm run typecheck
 
 # Interface in a browser with an emulated TV (no Rust needed)
-npm run dev            # http://localhost:1420 · ?platform=android · ?demo=fresh
+npm run dev            # http://localhost:1420 · ?platform=android · ?demo=fresh · ?update=available · ?checks=off|fail
 
 # TV emulator for the built-in engine
 cargo run -p easytizen-core --example mock_tv --features mock-tv -- 0.0.0.0 26101
@@ -651,7 +678,7 @@ export ANDROID_HOME=… NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018
 npx tauri android build --apk --target aarch64 armv7
 ```
 
-More: [architecture](docs/ARCHITECTURE.md) · [test report](docs/TEST-REPORT.md) · [known limitations](docs/KNOWN-LIMITATIONS.md) · [releasing and signing](docs/RELEASING.md) · [dependencies](docs/DEPENDENCIES.md) · [changelog](CHANGELOG.md).
+More: [architecture](docs/ARCHITECTURE.md) · [design system](docs/DESIGN-SYSTEM.md) · [test report](docs/TEST-REPORT.md) · [known limitations](docs/KNOWN-LIMITATIONS.md) · [releasing and signing](docs/RELEASING.md) · [dependencies](docs/DEPENDENCIES.md) · [changelog](CHANGELOG.md).
 
 </details>
 
@@ -684,7 +711,7 @@ The Tizen SDK is not bundled: with the official tools selected, Samsung's instal
 | Addresses of your subnet, port `26101` | only when you press “Find TVs” | a TCP connection attempt |
 | `account.samsung.com` (in your browser) | creating a certificate | you sign in yourself on Samsung's site |
 | `svdca.samsungqbe.com` | creating a certificate | the certificate request (public key, author name, DUID) and the Samsung token |
-| `api.github.com` | update check (can be disabled) | nothing beyond a standard request |
+| `api.github.com`, `github.com` and GitHub's file storage | checking for and downloading updates (can be disabled) | nothing beyond a standard request |
 | `download.tizen.org` and mirrors | Tizen SDK installation (desktop) | performed by Samsung's installer |
 
 EasyTizen has no servers of its own, no analytics and no telemetry.

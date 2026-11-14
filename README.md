@@ -4,6 +4,10 @@
 
 <br><br>
 
+<a href="README.md"><img src="docs/readme/lang-ru-active.svg" width="49%" alt="🇷🇺 Русская версия — вы читаете её"></a>&nbsp;<a href="README.en.md"><img src="docs/readme/lang-en.svg" width="49%" alt="🇬🇧 English version"></a>
+
+<br>
+
 [![Последняя версия](https://img.shields.io/github/v/release/volnalabs/TV-Deploy?label=%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F&color=3F5BF6&style=for-the-badge)](https://github.com/volnalabs/TV-Deploy/releases/latest)
 [![Сборка](https://img.shields.io/github/actions/workflow/status/volnalabs/TV-Deploy/ci.yml?branch=main&label=%D1%81%D0%B1%D0%BE%D1%80%D0%BA%D0%B0&style=for-the-badge&color=1E2230)](https://github.com/volnalabs/TV-Deploy/actions/workflows/ci.yml)
 [![Загрузки](https://img.shields.io/github/downloads/volnalabs/TV-Deploy/total?label=%D0%B7%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8&color=1E2230&style=for-the-badge)](https://github.com/volnalabs/TV-Deploy/releases)
@@ -11,13 +15,12 @@
 
 **[Скачать](#download)** &nbsp;·&nbsp; [Возможности](#features) &nbsp;·&nbsp; [Как выглядит](#look) &nbsp;·&nbsp; **[Установка](#install)** &nbsp;·&nbsp; [Android](#android) &nbsp;·&nbsp; [Windows](#windows) &nbsp;·&nbsp; [macOS](#macos) &nbsp;·&nbsp; [Linux](#linux) &nbsp;·&nbsp; [Samsung TV](#samsung-tv) &nbsp;·&nbsp; [FAQ](#faq) &nbsp;·&nbsp; [Для разработчиков](#dev)
 
-🇬🇧 [English version](README.en.md)
 
 <br>
 
-<img src="docs/img/desktop-ready.png" width="100%" alt="EasyTizen: телевизор подключён, приложение проверено, всё готово к установке">
+<img src="docs/img/ru/desktop-check.png" width="100%" alt="EasyTizen: телевизор подключён, пакет проверен, всё готово к установке">
 
-<sub>Три шага на одном экране: телевизор подключён, файл проверен — остаётся нажать «Установить на телевизор».</sub>
+<sub>Телевизор подключён, файл прошёл обязательную и дополнительную проверку — остаётся нажать «Установить на телевизор».</sub>
 
 </div>
 
@@ -126,8 +129,8 @@ EasyTizen — самостоятельный инструмент с откры�
 
 <img src="docs/readme/f-check.svg" width="52" height="52" align="left" alt="">
 
-**Безопасная проверка WGT**<br>
-Проверяет архив до установки: структура, `config.xml`, защита от zip-бомб и подмены путей.
+**Проверка WGT в два слоя**<br>
+Всегда: структура архива, защита от zip-бомб и подмены путей, безопасный XML. Дополнительно (отключаемо): ID приложения, стартовая страница, вложенные программы, имеющаяся подпись.
 
 </td>
 </tr>
@@ -180,8 +183,8 @@ EasyTizen — самостоятельный инструмент с откры�
 
 <img src="docs/readme/f-update.svg" width="52" height="52" align="left" alt="">
 
-**Проверка обновлений**<br>
-Сообщает о новой версии и даёт прямую ссылку на установщик для вашей системы.
+**Автоматические обновления**<br>
+Скачивает и проверяет подписанное обновление; применяет его при перезапуске. На Android — через системный установщик. Отключается в настройках.
 
 </td>
 </tr>
@@ -200,20 +203,24 @@ EasyTizen — самостоятельный инструмент с откры�
 
 <table>
 <tr>
-<td width="50%"><img src="docs/img/desktop-sdk.png" alt="Подготовка SDK"><br><sub><b>Подготовка SDK.</b> Выбор способа работы и установка инструментов Samsung с прогрессом и отменой</sub></td>
-<td width="50%"><img src="docs/img/desktop-find.png" alt="Поиск телевизора"><br><sub><b>Подключение телевизора.</b> Поиск в сети, ввод адреса и сохранённые устройства</sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/desktop-welcome.png" alt="Первый запуск"><br><sub><b>Первый запуск.</b> Три шага, выбор языка, светлая тема</sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/desktop-find.png" alt="Поиск телевизора"><br><sub><b>Поиск телевизора.</b> Сеть, ввод адреса и сохранённые устройства</sub></td>
 </tr>
 <tr>
-<td><img src="docs/img/desktop-cert-new.png" alt="Новый сертификат"><br><sub><b>Сертификат.</b> Выберите телевизоры, придумайте пароль — дальше вход в Samsung в браузере</sub></td>
-<td><img src="docs/img/desktop-ready.png" alt="Выбор WGT"><br><sub><b>Выбор WGT.</b> Сведения о приложении, результат проверки и состояние подписи</sub></td>
+<td valign="top"><img src="docs/img/ru/desktop-connected.png" alt="Телевизор подключён"><br><sub><b>Телевизор подключён.</b> Модель и номер устройства (DUID) с копированием</sub></td>
+<td valign="top"><img src="docs/img/ru/desktop-check.png" alt="Проверка пакета"><br><sub><b>Проверка WGT.</b> Обязательная безопасность файла и дополнительные проверки</sub></td>
 </tr>
 <tr>
-<td><img src="docs/img/desktop-progress.png" alt="Процесс установки"><br><sub><b>Установка.</b> Этапы: подписание, подключение, передача, установка, запуск</sub></td>
-<td><img src="docs/img/desktop-success.png" alt="Успешная установка"><br><sub><b>Готово.</b> Приложение установлено и запущено на телевизоре</sub></td>
+<td valign="top"><img src="docs/img/ru/desktop-progress.png" alt="Установка"><br><sub><b>Установка.</b> Этапы: подписание, передача, установка, запуск</sub></td>
+<td valign="top"><img src="docs/img/ru/desktop-success.png" alt="Готово"><br><sub><b>Готово.</b> Приложение установлено и запущено</sub></td>
 </tr>
 <tr>
-<td><img src="docs/img/desktop-tvs.png" alt="Телевизоры"><br><sub><b>Телевизоры.</b> Имена, адреса, DUID и время последнего подключения</sub></td>
-<td><img src="docs/img/desktop-history.png" alt="История"><br><sub><b>История.</b> Результаты установок с объяснением ошибок</sub></td>
+<td valign="top"><img src="docs/img/ru/desktop-cert-new.png" alt="Новый сертификат"><br><sub><b>Сертификат.</b> Телевизоры, пароль — дальше вход в Samsung в браузере</sub></td>
+<td valign="top"><img src="docs/img/ru/desktop-tvs.png" alt="Телевизоры"><br><sub><b>Телевизоры.</b> Имена, адреса, DUID и последнее подключение</sub></td>
+</tr>
+<tr>
+<td valign="top"><img src="docs/img/ru/desktop-updates.png" alt="Обновления"><br><sub><b>Обновления.</b> Автоматический режим, последняя проверка, проверенная подпись</sub></td>
+<td valign="top"><img src="docs/img/ru/desktop-security.png" alt="Проверка безопасности"><br><sub><b>Безопасность.</b> Отключение дополнительных проверок — только с подтверждением</sub></td>
 </tr>
 </table>
 
@@ -221,20 +228,26 @@ EasyTizen — самостоятельный инструмент с откры�
 
 <table>
 <tr>
-<td width="25%"><img src="docs/img/android-welcome.png" alt="Приветствие"><br><sub><b>Первый запуск</b></sub></td>
-<td width="25%"><img src="docs/img/android-devmode.png" alt="Режим разработчика"><br><sub><b>Подсказка для ТВ</b> с адресом телефона</sub></td>
-<td width="25%"><img src="docs/img/android-find.png" alt="Поиск ТВ"><br><sub><b>Поиск телевизора</b></sub></td>
-<td width="25%"><img src="docs/img/android-ready.png" alt="Приложение выбрано"><br><sub><b>Файл проверен</b></sub></td>
+<td width="25%" valign="top"><img src="docs/img/ru/android-welcome.png" alt="Первый запуск"><br><sub><b>Первый запуск</b></sub></td>
+<td width="25%" valign="top"><img src="docs/img/ru/android-home.png" alt="Главный экран"><br><sub><b>Главный экран</b></sub></td>
+<td width="25%" valign="top"><img src="docs/img/ru/android-find.png" alt="Поиск"><br><sub><b>Поиск телевизора</b></sub></td>
+<td width="25%" valign="top"><img src="docs/img/ru/android-connected.png" alt="Подключение"><br><sub><b>Подключён</b></sub></td>
 </tr>
 <tr>
-<td><img src="docs/img/android-progress.png" alt="Установка"><br><sub><b>Ход установки</b></sub></td>
-<td><img src="docs/img/android-success.png" alt="Готово"><br><sub><b>Установлено</b></sub></td>
-<td><img src="docs/img/android-certs.png" alt="Сертификаты"><br><sub><b>Сертификаты</b></sub></td>
-<td><img src="docs/img/desktop-welcome.png" alt="Светлая тема"><br><sub><b>Светлая тема</b> (компьютер)</sub></td>
+<td valign="top"><img src="docs/img/ru/android-package.png" alt="Выбор WGT"><br><sub><b>Файл выбран</b></sub></td>
+<td valign="top"><img src="docs/img/ru/android-check.png" alt="Проверка пакета"><br><sub><b>Проверка пакета</b></sub></td>
+<td valign="top"><img src="docs/img/ru/android-progress.png" alt="Установка"><br><sub><b>Ход установки</b></sub></td>
+<td valign="top"><img src="docs/img/ru/android-success.png" alt="Готово"><br><sub><b>Установлено</b></sub></td>
+</tr>
+<tr>
+<td valign="top"><img src="docs/img/ru/android-settings.png" alt="Настройки"><br><sub><b>Настройки</b></sub></td>
+<td valign="top"><img src="docs/img/ru/android-updates.png" alt="Обновления"><br><sub><b>Обновления</b></sub></td>
+<td valign="top"><img src="docs/img/ru/android-security.png" alt="Безопасность"><br><sub><b>Проверка безопасности</b></sub></td>
+<td valign="top"><img src="docs/img/ru/android-devmode.png" alt="Режим разработчика"><br><sub><b>Подсказка для ТВ</b> с адресом телефона</sub></td>
 </tr>
 </table>
 
-<sub>О скриншотах: это настоящий интерфейс EasyTizen, снятый автоматически (<code>scripts/screenshots.mjs</code>) в демонстрационном режиме — телевизор, сертификат и приложение <i>My App</i> на них эмулированы, подпись «Демо-режим» видна на экране. Снимки сделаны в окне браузера с размерами настольного окна и экрана телефона; на реальном телефоне и телевизоре приложение пока не снималось. Окно упакованного приложения для Linux, запущенного в тестовом окружении: <a href="docs/img/linux-window.png">linux-window.png</a>.</sub>
+<sub>О скриншотах: это настоящий интерфейс EasyTizen на русском языке, снятый автоматически (<code>scripts/screenshots.mjs</code>) в демонстрационном режиме — телевизор, сертификат, приложение <i>My App</i> и вышедшее обновление на них эмулированы, подпись «Демо» видна на экране. Снимки сделаны в браузере с размерами окна компьютера и экрана телефона; на реальном телефоне и телевизоре приложение пока не снималось. Окно упакованного приложения для Linux в тестовом окружении: <a href="docs/img/linux-window.png">linux-window.png</a>. Английские скриншоты — в <a href="README.en.md#look">английской версии</a>.</sub>
 
 <p align="center"><img src="docs/readme/divider.svg" width="100%" height="24" alt=""></p>
 
@@ -572,7 +585,21 @@ Tizen устанавливает только подписанные прило�
 
 <br>
 
-При запуске приложение спрашивает у GitHub номер последней версии и, если она новее, показывает полосу со ссылкой на установщик для вашей системы. Скачивание и установку вы запускаете сами — тихого автообновления нет. Проверку можно отключить в настройках, там же кнопка «Проверить сейчас».
+Настройки → **Обновления приложения**. В автоматическом режиме (включён по умолчанию) EasyTizen раз в несколько часов спрашивает у GitHub последнюю версию, скачивает обновление и проверяет его подпись ключом проекта. На Windows, macOS и Linux оно применяется при перезапуске — EasyTizen спросит подтверждение и никогда не перезапустится во время установки на телевизор. На Android скачанный APK сверяется с контрольной суммой релиза и передаётся системному установщику: Android сам попросит подтвердить установку (и один раз — разрешить установку из EasyTizen). Если приложение установлено из Google Play, обновления приходят оттуда. Выключите переключатель — и никаких фоновых проверок и загрузок не будет; кнопка «Проверить сейчас» работает всегда. Сборки без ключа подписи обновлений (например, собранные самостоятельно) ничего не устанавливают сами и предлагают скачать установщик вручную.
+
+</details>
+
+<details>
+<summary><b>Что проверяет EasyTizen перед установкой и можно ли это отключить?</b></summary>
+
+<br>
+
+Проверка состоит из двух слоёв.
+
+- **Безопасная обработка файла — всегда.** Структура ZIP-архива, защита от подмены путей (Zip Slip), ограничения числа файлов, размера и степени сжатия (zip-бомбы), повреждённые архивы, `config.xml` без DTD и сущностей. Эти проверки не отключаются.
+- **Дополнительные проверки — включены по умолчанию.** ID приложения в формате Tizen и совпадение с ID пакета, наличие стартовой страницы, отсутствие исполняемых программ для других систем (ELF, Windows PE, Mach-O), отсутствие повторяющихся имён файлов и — при установке без переподписи — совпадение имеющейся подписи с файлами. Пакет с проблемами не устанавливается.
+
+Дополнительные проверки можно отключить: **Настройки → Безопасность → «Дополнительная проверка безопасности приложений»**. EasyTizen попросит подтвердить отключение, покажет предупреждение у каждого пакета и перед каждой установкой попросит явно подтвердить, что вы доверяете файлу. Это проверки целостности и согласованности, а не антивирус.
 
 </details>
 
@@ -636,7 +663,7 @@ npm test                                                   # интерфейс 
 npm run typecheck
 
 # Интерфейс в браузере с эмулятором ТВ (без Rust)
-npm run dev            # http://localhost:1420 · ?platform=android · ?demo=fresh
+npm run dev            # http://localhost:1420 · ?platform=android · ?demo=fresh · ?update=available · ?checks=off|fail
 
 # Эмулятор телевизора для встроенного движка
 cargo run -p easytizen-core --example mock_tv --features mock-tv -- 0.0.0.0 26101
@@ -651,7 +678,7 @@ export ANDROID_HOME=… NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018
 npx tauri android build --apk --target aarch64 armv7
 ```
 
-Подробнее: [архитектура](docs/ARCHITECTURE.md) · [отчёт о тестировании](docs/TEST-REPORT.md) · [ограничения](docs/KNOWN-LIMITATIONS.md) · [выпуск релизов и подпись](docs/RELEASING.md) · [зависимости](docs/DEPENDENCIES.md) · [история изменений](CHANGELOG.md).
+Подробнее: [архитектура](docs/ARCHITECTURE.md) · [дизайн-система](docs/DESIGN-SYSTEM.md) · [отчёт о тестировании](docs/TEST-REPORT.md) · [ограничения](docs/KNOWN-LIMITATIONS.md) · [выпуск релизов и подпись](docs/RELEASING.md) · [зависимости](docs/DEPENDENCIES.md) · [история изменений](CHANGELOG.md).
 
 </details>
 
@@ -684,7 +711,7 @@ Tizen SDK в поставку не входит: при выборе офици�
 | Адреса вашей подсети, порт `26101` | только при нажатии «Найти телевизоры» | попытка TCP-подключения |
 | `account.samsung.com` (в вашем браузере) | создание сертификата | вход выполняете вы сами на сайте Samsung |
 | `svdca.samsungqbe.com` | создание сертификата | запрос на сертификат (открытый ключ, имя автора, DUID) и токен Samsung |
-| `api.github.com` | проверка обновлений (отключается) | ничего, кроме стандартного запроса |
+| `api.github.com`, `github.com` и хранилище файлов GitHub | проверка и загрузка обновлений (отключается) | ничего, кроме стандартного запроса |
 | `download.tizen.org` и зеркала | установка Tizen SDK (компьютер) | выполняет установщик Samsung |
 
 Собственных серверов, аналитики и телеметрии у EasyTizen нет.

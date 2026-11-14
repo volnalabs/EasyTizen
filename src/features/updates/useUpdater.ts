@@ -10,6 +10,22 @@ export const AUTO_CHECK_DELAY_MS = 8_000;
 /** When an installation on the TV is running, a background download waits this long. */
 export const BUSY_RETRY_MS = 10 * 60 * 1000;
 
+/**
+ * Background schedule of the automatic mode: a first check shortly after start-up, then one
+ * every few hours. Returns the cleanup. With `auto` off it schedules nothing at all.
+ */
+export function scheduleAutoChecks(auto: boolean, check: () => void, timers: Pick<typeof globalThis, "setTimeout" | "clearTimeout" | "setInterval" | "clearInterval"> = globalThis): () => void {
+  if (!auto) return () => undefined;
+  const first = timers.setTimeout(check, AUTO_CHECK_DELAY_MS);
+  const every = timers.setInterval(check, AUTO_CHECK_INTERVAL_MS);
+  return () => { timers.clearTimeout(first); timers.clearInterval(every); };
+}
+
+/** After a check: start a background download only for automatic checks of installable updates. */
+export function shouldAutoDownload(status: Pick<UpdateStatus, "available" | "install">, manual: boolean): boolean {
+  return status.available && !manual && status.install !== "manual";
+}
+
 export type UpdatePhase = "idle" | "checking" | "latest" | "available" | "downloading" | "ready" | "applying" | "error";
 
 export interface Updater {
@@ -89,7 +105,7 @@ export function useUpdater({ auto, busy, onChecked }: { auto: boolean; busy: boo
       const result = await api.updateCheck();
       setStatus(result);
       setPhase(result.available ? "available" : "latest");
-      if (result.available && !manual && result.install !== "manual") void download(true);
+      if (shouldAutoDownload(result, manual)) void download(true);
       return result;
     } catch (e) {
       setError(toApiError(e).code); setPhase("error");
@@ -100,13 +116,9 @@ export function useUpdater({ auto, busy, onChecked }: { auto: boolean; busy: boo
   }, [download, status]);
 
   // Automatic mode: no timers at all when it is off.
-  useEffect(() => {
-    if (!auto) return;
-    const first = setTimeout(() => void check(false), AUTO_CHECK_DELAY_MS);
-    const every = setInterval(() => void check(false), AUTO_CHECK_INTERVAL_MS);
-    return () => { clearTimeout(first); clearInterval(every); };
+  useEffect(() => scheduleAutoChecks(auto, () => void check(false)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto]);
+    [auto]);
 
   const apply = useCallback(async () => {
     if (busyRef.current) { setError("update_busy"); return; }
