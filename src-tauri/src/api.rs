@@ -1013,7 +1013,11 @@ pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String 
         "Additional package checks: {}; automatic updates: {} (update key {})",
         if s.extra_package_checks { "on" } else { "OFF" },
         if s.check_updates { "on" } else { "off" },
-        if crate::updates::pubkey().is_some() { "present" } else { "absent" }
+        if crate::updates::pubkey().is_some() {
+            "present"
+        } else {
+            "absent"
+        }
     ));
     if cfg!(desktop) {
         let t = sdk_engine::toolchain_status(&app, &state);

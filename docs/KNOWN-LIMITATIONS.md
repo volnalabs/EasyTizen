@@ -35,7 +35,7 @@ This page separates what is implemented from what has been confirmed, and lists 
 ## Not verified for this redesign
 
 * The redesign was checked in Chromium (Playwright) at phone and desktop sizes, not in the Android System WebView of a real phone or in WebKitGTK/WKWebView/WebView2 windows of the packaged desktop apps (the Linux build was started under Xvfb only).
-* The Android font-size following (`textZoom`) and the APK hand-over to the system installer were built but not run on a device.
+* The Android font-size following (`textZoom`) and the APK hand-over to the system installer (`ApkInstallerPlugin.kt`) were not run on a device, and the APK could not be built in the authoring sandbox (Maven Central rate-limited Gradle) — the Kotlin side is compiled only by CI.
 
 ## Release gate
 

@@ -122,20 +122,18 @@ jobs:
       - name: Enable signed update artifacts
         if: needs.signing.outputs.updater == 'signed'
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           EASYTIZEN_UPDATER_PUBKEY: ${{ vars.EASYTIZEN_UPDATER_PUBKEY }}
         run: |
-          {
-            echo "TAURI_SIGNING_PRIVATE_KEY=$TAURI_SIGNING_PRIVATE_KEY"
-            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-            # Compiled into the app: the public key the updater verifies downloads with.
-            echo "EASYTIZEN_UPDATER_PUBKEY=$EASYTIZEN_UPDATER_PUBKEY"
-          } >> "$GITHUB_ENV"
           # The bundler signs the artifacts and needs the matching public key in the config.
           node -e 'require("fs").writeFileSync("updater.conf.json", JSON.stringify({ bundle: { createUpdaterArtifacts: true }, plugins: { updater: { pubkey: process.env.EASYTIZEN_UPDATER_PUBKEY, endpoints: ["https://github.com/volnalabs/TV-Deploy/releases/latest/download/latest.json"], requireSignedVersion: true } } }))'
 
       - name: Build
+        env:
+          # Only with the update key configured: compiled-in public key and the signing key the
+          # bundler uses for the updater artifacts (passed to this step only).
+          EASYTIZEN_UPDATER_PUBKEY: ${{ needs.signing.outputs.updater == 'signed' && vars.EASYTIZEN_UPDATER_PUBKEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ needs.signing.outputs.updater == 'signed' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ needs.signing.outputs.updater == 'signed' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           args=(--bundles "${{ matrix.bundles }}")
           if [ -n "${{ matrix.target }}" ]; then args+=(--target "${{ matrix.target }}"); fi

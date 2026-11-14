@@ -28,6 +28,7 @@ use tauri::{AppHandle, Emitter, State};
 /// `tauri signer generate`). CI compiles it in from the repository variable of the same name.
 const PUBKEY: Option<&str> = option_env!("EASYTIZEN_UPDATER_PUBKEY");
 /// `latest.json` of the newest GitHub release, written by the release workflow.
+#[cfg_attr(mobile, allow(dead_code))] // Android reads the release API instead.
 pub const MANIFEST_URL: &str =
     "https://github.com/volnalabs/TV-Deploy/releases/latest/download/latest.json";
 
