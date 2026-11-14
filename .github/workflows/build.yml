@@ -132,7 +132,8 @@ jobs:
             # Compiled into the app: the public key the updater verifies downloads with.
             echo "EASYTIZEN_UPDATER_PUBKEY=$EASYTIZEN_UPDATER_PUBKEY"
           } >> "$GITHUB_ENV"
-          echo '{ "bundle": { "createUpdaterArtifacts": true } }' > updater.conf.json
+          # The bundler signs the artifacts and needs the matching public key in the config.
+          node -e 'require("fs").writeFileSync("updater.conf.json", JSON.stringify({ bundle: { createUpdaterArtifacts: true }, plugins: { updater: { pubkey: process.env.EASYTIZEN_UPDATER_PUBKEY, endpoints: ["https://github.com/volnalabs/TV-Deploy/releases/latest/download/latest.json"] } } }))'
 
       - name: Build
         run: |
