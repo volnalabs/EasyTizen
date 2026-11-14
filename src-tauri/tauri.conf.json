@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "EasyTizen",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "identifier": "io.github.volnalabs.easytizen",
   "build": {
     "beforeDevCommand": "npm run dev",
