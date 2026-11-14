@@ -21,11 +21,21 @@ This page separates what is implemented from what has been confirmed, and lists 
 * **Certificates are per engine.** Moving between the SDK keystore and the built-in store means importing the `.p12` files.
 * **Uninstalling an app from the TV** from within EasyTizen is available in the built-in engine only.
 * **macOS + official tools** needs Bash 4+ (`brew install bash`); EasyTizen reports this but does not install it.
-* **Signature check before installation is structural** (both signature documents present and well-formed), not a trust-chain validation.
-* **Update check only.** EasyTizen links to the new installer; it does not download or install updates by itself.
+* **Signature check before installation** is structural plus, with the additional checks on and when installing as is, a comparison of the signature's file digests with the package. The RSA signature value and the certificate chain are not validated — the TV does that.
+* **Additional package checks are not an antivirus.** They check identity and consistency (app ID, start page, executables for other systems, duplicate names, existing signature digests). They cannot tell whether a web app's JavaScript is benign.
+* **Self-update needs the project's update key.** Only builds made by CI with `TAURI_SIGNING_PRIVATE_KEY` and `EASYTIZEN_UPDATER_PUBKEY` can update themselves; 0.9.0 and local builds show new releases and link to the installer. The signed path was tested locally with a throw-away key and in unit tests, not yet in a real release.
+* **What "automatic" means per platform.** Windows: the update is downloaded and verified automatically; the installer runs after you confirm, because it closes the app. macOS and AppImage: installed on disk automatically (not while a TV operation runs), active after a restart you confirm. `.deb`/`.rpm`: installed through the package manager after you confirm (an administrator prompt appears). Android: downloaded and verified automatically; Android's installer always asks you, and once you must allow installs from EasyTizen.
+* **Android self-update requires a stable signing key.** APKs signed with a per-build throw-away key cannot update each other; Android reports a conflict. Installs from Google Play are never updated by EasyTizen. For a Google Play build, `REQUEST_INSTALL_PACKAGES` needs a Play policy declaration or must be removed.
+* **Android 130 % font size and larger:** bottom-bar labels may be shortened with an ellipsis on phones narrower than 412 px (the full name stays available to screen readers).
+* **Right-to-left languages** are not supported; layouts use logical alignment where it matters, but no RTL locale has been tested.
 * **Code signing** of Windows/macOS builds and a stable Android key depend on repository secrets (see RELEASING.md). Without them: unsigned Windows installer, ad-hoc signed macOS app, Android APK signed with a per-build throw-away key.
 * **Node.js runtime integrity** (desktop) is checked against the SHA-256 published over HTTPS by nodejs.org; the GPG signature of that list is not verified.
 * **Only `.wgt`** packages are supported.
+
+## Not verified for this redesign
+
+* The redesign was checked in Chromium (Playwright) at phone and desktop sizes, not in the Android System WebView of a real phone or in WebKitGTK/WKWebView/WebView2 windows of the packaged desktop apps (the Linux build was started under Xvfb only).
+* The Android font-size following (`textZoom`) and the APK hand-over to the system installer were built but not run on a device.
 
 ## Release gate
 

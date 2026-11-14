@@ -17,6 +17,7 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 | p12-keystore | reading and writing PKCS#12 keystores | MIT / Apache-2.0 |
 | getrandom | system randomness for key generation | MIT / Apache-2.0 |
 | ureq (rustls, webpki-roots) | HTTPS to Samsung's CA and GitHub's API | MIT / Apache-2.0 |
+| minisign-verify | verifying update signatures (Android APK) | MIT |
 | tempfile (dev) | tests | MIT / Apache-2.0 |
 
 ### easytizen (src-tauri)
@@ -27,6 +28,7 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 | tauri-plugin-fs | reading Android `content://` documents from Rust | MIT / Apache-2.0 |
 | tauri-plugin-opener | opening the Samsung sign-in page and GitHub links | MIT / Apache-2.0 |
 | fs2 | free disk space | MIT / Apache-2.0 |
+| tauri-plugin-updater (desktop only) | signed self-update; registered only in builds that carry the update key | MIT / Apache-2.0 |
 | serde, serde_json | settings, history | MIT / Apache-2.0 |
 
 ## npm
@@ -36,6 +38,7 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 | @tauri-apps/api, @tauri-apps/plugin-dialog | bridge to the backend, pickers | MIT / Apache-2.0 |
 | react, react-dom | interface | MIT |
 | lucide-react | interface icons | ISC |
+| @fontsource-variable/inter | Inter 4 variable font, bundled (Latin, Cyrillic) | SIL OFL 1.1 |
 | tailwindcss, @tailwindcss/vite (dev) | styling | MIT |
 | vite, @vitejs/plugin-react, typescript, vitest, @tauri-apps/cli (dev) | build and tests | MIT / Apache-2.0 |
 
