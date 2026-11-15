@@ -589,11 +589,10 @@ export const en = {
   today: "Today",
   yesterday: "Yesterday",
   connectionBody: "Change only if your TV needs other values.",
-
-  // 1.0 redesign
   checksFailedShort: "Problems found: {n}",
   checksBlockedHint: "Installation is blocked to protect the TV. Choose another file — or, if you trust this one, turn the additional checks off in Settings.",
-  checksBlockedTitle: "The checks found problems",
+  passwordShow: "Show password",
+  passwordHide: "Hide password",
 } as const;
 
 export type Key = keyof typeof en;

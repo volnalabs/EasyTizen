@@ -1,7 +1,7 @@
 import { ExternalLink, FileArchive, FileKey, KeyRound, LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../app/context";
-import { Button, DialogCancel, Details, Field, Modal, Notice, Progress, Toggle, useToast } from "../components/ui";
+import { Button, Details, DialogCancel, Field, Modal, Notice, PasswordInput, Progress, Toggle, useToast } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import type { Key } from "../i18n";
 import { opId, passwordProblem, validProfileName } from "../lib/format";
@@ -148,8 +148,8 @@ export function CreateCertificateDialog({ preselectDuid, tizenVersion, onClose, 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t("certProfileName")} hint={t("certProfileHint")} error={nameError}><input className="input" value={name} onChange={(e) => { nameEdited.current = true; setName(e.target.value); }} autoComplete="off" spellCheck={false} aria-invalid={!!nameError} /></Field>
             <Field label={t("certIdentity")} hint={t("certIdentityHint")}><input className="input" value={identity} onChange={(e) => setIdentity(e.target.value)} autoComplete="name" /></Field>
-            <Field label={t("certPassword")} error={passwordError}><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" aria-invalid={!!passwordError} /></Field>
-            <Field label={t("certPasswordConfirm")} error={confirmError}><input className="input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" aria-invalid={!!confirmError} /></Field>
+            <Field label={t("certPassword")} error={passwordError}><PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" aria-invalid={!!passwordError} /></Field>
+            <Field label={t("certPasswordConfirm")} error={confirmError}><PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" aria-invalid={!!confirmError} /></Field>
           </div>
           <p className="flex items-start gap-2 text-small text-muted"><LockKeyhole size={15} className="mt-[3px] shrink-0" aria-hidden /><span className="min-w-0">{t("certPasswordHint")}</span></p>
           {kind === "samsung" ? <Notice tone="info">{t("certSamsungNote")}</Notice> : (
@@ -213,9 +213,9 @@ export function ImportCertificateDialog({ onClose, onImported }: { onClose: () =
         <Field label={t("certProfileName")} hint={t("certProfileHint")} error={!validProfileName(name.trim()) ? t("certInvalidProfile") : null}><input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" spellCheck={false} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("certAuthorFile")}>{fileButton(author, setAuthor)}</Field>
-          <Field label={t("certFilePassword")}><input className="input" type="password" value={authorPassword} onChange={(e) => setAuthorPassword(e.target.value)} autoComplete="off" /></Field>
+          <Field label={t("certFilePassword")}><PasswordInput value={authorPassword} onChange={(e) => setAuthorPassword(e.target.value)} autoComplete="off" /></Field>
           <Field label={t("certDistributorFile")}>{fileButton(distributor, setDistributor)}</Field>
-          {!same && <Field label={t("certFilePassword")}><input className="input" type="password" value={distributorPassword} onChange={(e) => setDistributorPassword(e.target.value)} autoComplete="off" /></Field>}
+          {!same && <Field label={t("certFilePassword")}><PasswordInput value={distributorPassword} onChange={(e) => setDistributorPassword(e.target.value)} autoComplete="off" /></Field>}
         </div>
         <Toggle checked={same} onChange={setSame} label={t("certSamePassword")} />
         {error && <Notice tone="err" title={err(error)}>{error.detail && <Details label={t("technicalDetails")}>{error.detail}</Details>}</Notice>}

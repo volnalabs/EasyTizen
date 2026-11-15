@@ -1,7 +1,7 @@
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, Copy, Info, Loader2, X, XCircle } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, Copy, Eye, EyeOff, Info, Loader2, X, XCircle } from "lucide-react";
 import {
   createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState,
-  type ButtonHTMLAttributes, type ReactNode,
+  type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../hooks/i18n";
@@ -172,6 +172,22 @@ export function Field({ label, hint, error, children, htmlFor }: { label: string
   );
 }
 
+/** Password field with a show/hide button. The field keeps focus (and the phone keyboard stays up) when toggled. */
+export function PasswordInput({ className = "", ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="relative">
+      <input {...rest} type={shown ? "text" : "password"} autoCapitalize="off" autoCorrect="off" spellCheck={false} className={`input pe-12 ${shown ? "data" : ""} ${className}`} />
+      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setShown(!shown)} aria-pressed={shown}
+        aria-label={shown ? t("passwordHide") : t("passwordShow")} title={shown ? t("passwordHide") : t("passwordShow")}
+        className="icon-btn absolute end-1 top-1/2 -translate-y-1/2">
+        {shown ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+      </button>
+    </div>
+  );
+}
+
 /** Determinate when `value` is a number (0–1), a travelling stripe otherwise. */
 export function Progress({ value, label, tone = "accent", size = "md" }: { value: number | null; label?: string; tone?: "accent" | "ok"; size?: "sm" | "md" }) {
   const fill = tone === "ok" ? "bg-ok" : "brand-gradient";
@@ -314,7 +330,7 @@ export function Modal({ title, onClose, children, footer, wide, dismissible = tr
     <DialogContext.Provider value={dismiss}>
       <div className={`${leaving ? "scrim-out" : "scrim-in"} fixed inset-0 z-40 flex items-end justify-center bg-[var(--scrim)] sm:items-center sm:p-6`} onMouseDown={(e) => dismissible && e.target === e.currentTarget && dismiss()}>
         <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}
-          className={`${leaving ? "sheet-out" : "sheet-in"} safe-x flex max-h-[min(94dvh,54rem)] w-full flex-col rounded-t-dialog bg-surface shadow-pop outline-none sm:rounded-dialog sm:border sm:border-line ${wide ? "sm:max-w-[38rem]" : "sm:max-w-[28rem]"}`}>
+          className={`${leaving ? "sheet-out" : "sheet-in"} safe-x flex max-h-[min(94dvh,54rem)] w-full flex-col rounded-t-dialog bg-dialog shadow-pop outline-none sm:rounded-dialog ${wide ? "sm:max-w-[38rem]" : "sm:max-w-[28rem]"}`}>
           <div className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-fill-3 sm:hidden" aria-hidden />
           <div className="flex items-start gap-3 px-5 pt-4 pb-2 sm:px-6 sm:pt-6">
             <div className="min-w-0 flex-1 pt-1">
@@ -324,7 +340,7 @@ export function Modal({ title, onClose, children, footer, wide, dismissible = tr
             {dismissible && <IconButton label={t("close")} onClick={dismiss} className="-me-2 -mt-0.5"><X size={18} aria-hidden /></IconButton>}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-2 pb-5 sm:px-6 sm:pb-6">{children}</div>
-          {footer && <div className="safe-bottom flex flex-col-reverse gap-2 border-t border-line px-5 pt-3 pb-3 sm:flex-row sm:justify-end sm:px-6 sm:py-4 [&>.btn]:w-full sm:[&>.btn]:w-auto">{footer}</div>}
+          {footer && <div className="flex flex-col-reverse gap-2 border-t border-line px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:flex-row sm:justify-end sm:px-6 sm:py-4 [&>.btn]:w-full sm:[&>.btn]:w-auto">{footer}</div>}
           {!footer && <div className="safe-bottom" />}
         </div>
       </div>

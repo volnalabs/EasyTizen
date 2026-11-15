@@ -1,7 +1,7 @@
 import { Check, CircleAlert, Download, History, Rocket, ShieldOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../app/context";
-import { Button, DialogCancel, Details, Field, Modal, Notice, prefersReducedMotion, Progress, Spinner, Toggle } from "../components/ui";
+import { Button, Details, DialogCancel, Field, Modal, Notice, PasswordInput, prefersReducedMotion, Progress, Spinner, Toggle } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import type { Key } from "../i18n";
 import { opId } from "../lib/format";
@@ -198,7 +198,7 @@ export function InstallStep({ tv, pkg, ready, waiting, willSign, profile, alread
           <form onSubmit={(e) => { e.preventDefault(); if (password) void install(password); }} className="space-y-3">
             <p className="text-muted">{t("passwordBody", { name: profile })}</p>
             <Field label={t("passwordLabel")} error={askPassword === "wrong" ? t("passwordWrong") : null}>
-              <input className="input" type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" aria-invalid={askPassword === "wrong"} enterKeyHint="done" />
+              <PasswordInput autoFocus value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" aria-invalid={askPassword === "wrong"} enterKeyHint="done" />
             </Field>
           </form>
         </Modal>

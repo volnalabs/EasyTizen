@@ -581,9 +581,8 @@ export const ru: Record<Key, string> = {
   today: "Сегодня",
   yesterday: "Вчера",
   connectionBody: "Меняйте, только если телевизору нужны другие значения.",
-
-  // 1.0 redesign
   checksFailedShort: "Найдены проблемы: {n}",
   checksBlockedHint: "Установка заблокирована, чтобы защитить телевизор. Выберите другой файл — или, если доверяете этому, отключите дополнительные проверки в настройках.",
-  checksBlockedTitle: "Проверка нашла проблемы",
+  passwordShow: "Показать пароль",
+  passwordHide: "Скрыть пароль",
 };

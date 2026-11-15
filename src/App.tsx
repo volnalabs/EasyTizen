@@ -146,20 +146,22 @@ function Dock({ page, go, hidden }: { page: Page; go: (p: Page) => void; hidden:
   const index = TABS.findIndex((n) => n.page === page);
   if (hidden) return null;
   return (
-    <nav className="safe-bottom safe-x shrink-0 px-2 pt-1.5 pb-2 min-[360px]:px-3 sm:hidden" aria-label={t("navMain")}>
-      <div className="relative grid grid-cols-4 rounded-[22px] border border-line bg-[var(--dock)] p-1 shadow-raised backdrop-blur-md">
-        <span aria-hidden className={`absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/4)] rounded-[18px] bg-accent-soft transition-[transform,opacity] duration-[240ms] ease-[var(--ease-out)] ${index < 0 ? "opacity-0" : ""}`}
-          style={{ transform: `translateX(${Math.max(0, index) * 100}%)` }} />
-        {TABS.map(({ page: p, icon: Icon, label }) => {
-          const on = page === p;
-          return (
-            <button key={p} type="button" aria-current={on ? "page" : undefined} onClick={() => go(p)}
-              className={`relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-[3px] rounded-[18px] px-0 text-micro leading-tight tracking-[-0.02em] transition-colors duration-200 active:scale-[0.96] ${on ? "font-semibold text-accent-text" : "font-medium text-muted"}`}>
-              <Icon size={21} strokeWidth={on ? 2.2 : 1.9} aria-hidden className={`transition-transform duration-200 ${on ? "-translate-y-px" : ""}`} />
-              <span className="w-full overflow-hidden text-center text-ellipsis whitespace-nowrap">{t(label)}</span>
-            </button>
-          );
-        })}
+    <nav className="safe-bottom safe-x shrink-0 sm:hidden" aria-label={t("navMain")}>
+      <div className="px-1 pt-1.5 pb-2 min-[360px]:px-3">
+        <div className="relative grid grid-cols-4 rounded-[22px] border border-line bg-[var(--dock)] p-0.5 shadow-raised backdrop-blur-md min-[360px]:p-1">
+          <span aria-hidden className={`absolute top-0.5 bottom-0.5 left-0.5 w-[calc((100%-0.25rem)/4)] rounded-[18px] min-[360px]:top-1 min-[360px]:bottom-1 min-[360px]:left-1 min-[360px]:w-[calc((100%-0.5rem)/4)] bg-accent-soft transition-[transform,opacity] duration-[240ms] ease-[var(--ease-out)] ${index < 0 ? "opacity-0" : ""}`}
+            style={{ transform: `translateX(${Math.max(0, index) * 100}%)` }} />
+          {TABS.map(({ page: p, icon: Icon, label }) => {
+            const on = page === p;
+            return (
+              <button key={p} type="button" aria-current={on ? "page" : undefined} onClick={() => go(p)}
+                className={`relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-[3px] rounded-[18px] px-0 text-micro leading-tight tracking-[-0.03em] transition-colors min-[360px]:tracking-[-0.02em] duration-200 active:scale-[0.96] ${on ? "font-semibold text-accent-text" : "font-medium text-muted"}`}>
+                <Icon size={21} strokeWidth={on ? 2.2 : 1.9} aria-hidden className={`transition-transform duration-200 ${on ? "-translate-y-px" : ""}`} />
+                <span className="w-full overflow-hidden text-center text-ellipsis whitespace-nowrap">{t(label)}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

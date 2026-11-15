@@ -7,7 +7,7 @@ EasyTizen is a precise tool for one job: getting an app onto a TV. The interface
 | File | Contents |
 |---|---|
 | `src/styles/index.css` | tokens (`:root` / `[data-theme="dark"]`), the Tailwind theme mapping, base styles, component classes (`.btn`, `.icon-btn`, `.panel`, `.input`, `.chip`, `.data`, `.eyebrow`, `.row-btn`), motion |
-| `src/components/ui.tsx` | `Button`, `IconButton`, `Spinner`, `Segmented`, `Toggle`, `Pill`, `StatusDot`, `DataList`/`Row`, `CopyButton`, `Field`, `Progress`, `Notice`, `Details`, `EmptyState`, `PageHeader`, `Section`, `Modal` + `DialogCancel`, toasts, `useMediaQuery` |
+| `src/components/ui.tsx` | `Button`, `IconButton`, `Spinner`, `Segmented`, `Toggle`, `Pill`, `StatusDot`, `DataList`/`Row`, `CopyButton`, `Field`, `PasswordInput`, `Progress`, `Notice`, `Details`, `EmptyState`, `PageHeader`, `Section`, `Modal` + `DialogCancel`, toasts, `useMediaQuery` |
 | `src/components/SplitView.tsx` | master–detail layout (`SplitView`, `ListItem`, `useSplit`) for TVs and certificates |
 | `src/i18n/{en,ru}.ts` | every user-visible string |
 
@@ -22,6 +22,7 @@ Use the tokens through Tailwind: `bg-surface`, `text-muted`, `bg-fill`, `border-
 | `--bg` | `bg-bg` | `#f4f4f1` warm paper | `#0d0e11` graphite | window background |
 | `--surface` | `bg-surface` | `#ffffff` | `#15161a` | panels, bars, dialogs |
 | `--raised` | `bg-raised` | `#ffffff` | `#2a2c33` | selected segment, active sidebar item, switch knob |
+| `--dialog` | `bg-dialog` | `#ffffff` | `#1d1e23` | dialogs and bottom sheets — a step above the scrim, so they need no outline |
 | `--fill-1/2/3` | `bg-fill` / `bg-fill-2` / `bg-fill-3` | ink at 4.5 / 7.5 / 12 % | white at 5 / 8.5 / 13 % | hover · secondary buttons and pressed · switch and progress tracks. Alpha, so they work on any surface |
 | `--line` / `--line-strong` | `border-line` / `border-line-strong` | ink 8 % / 16 % | white 7.5 % / 15 % | hairlines / input outlines, the drop zone |
 | `--text` / `--muted` / `--faint` | `text-fg` / `text-muted` / `text-faint` | `#111216` / `#5c5f67` (6.4:1) / `#8e9098` | `#ecedef` / `#a1a4ac` (7.3:1) / `#6d7078` | primary / secondary / placeholders and disabled only |
@@ -44,7 +45,7 @@ The accent is a signal blue (hue ≈ 217°), between the two stops of the logo. 
 
 Icon tiles are 9–16 px squircles sized with the tile. Shapes follow purpose: a chip is a pill, a control a soft square, a panel calm.
 
-Elevation is quiet and layered — `shadow-card` (panels: a 1–3 px whisper), `shadow-raised` (selected segment, knob, dock, copy chips), `shadow-pop` (dialogs, toasts). No outlines around buttons, no dark halos, no glow. In dark mode depth comes from lighter surfaces, not shadows.
+Elevation is quiet and layered — `shadow-card` (panels: a 1–3 px whisper), `shadow-raised` (selected segment, knob, dock, copy chips), `shadow-pop` (dialogs, toasts). No outlines around buttons or dialogs, no dark halos, no glow. In dark mode depth comes from lighter surfaces, not shadows: panels have only their hairline, dialogs a lighter surface and one soft shadow.
 
 ## Type
 
@@ -78,7 +79,7 @@ All sizes are `rem`. On touch devices (`:root[data-touch]`, set on Android and c
 
 States: hover (darker fill), pressed (`scale(.975)` + darker), focus (2 px outline, 2 px offset), disabled (its own neutral look — `fill-1` and faint text, not a faded primary), loading (`busy`: the `icon` turns into a spinner, label stays, `aria-busy`). Sizes `sm` 32 / `md` 40 / `lg` 48 px; on touch 40 / 46 / 52 px. Labels may wrap; never shrink the text. A destructive action is a ghost button in red at the bottom of a detail and always opens a confirmation.
 
-**Inputs** — 42 px (48 px touch), 12 px radius, hairline outline, accent border + 4 px soft ring on focus, error border and an icon + message below. `enterKeyHint` and `inputMode` set for the on-screen keyboard.
+**Inputs** — 42 px (48 px touch), 12 px radius, hairline outline, accent border + 4 px soft ring on focus, error border and an icon + message below. `enterKeyHint` and `inputMode` set for the on-screen keyboard. Passwords use `PasswordInput` (show/hide button that keeps focus and the keyboard).
 
 **Switches** — `Toggle`: the whole row is the control (`role="switch"`), 44 × 26 px track, spring-eased knob with a check.
 
@@ -110,7 +111,7 @@ States: hover (darker fill), pressed (`scale(.975)` + darker), focus (2 px outli
 | 600–1023 px (tablets portrait, narrow windows) | navigation rail with all five sections and a TV indicator | one column up to 46 rem, centred dialogs |
 | ≥ 1024 px (desktop, tablets landscape) | 264 px sidebar with the connected-TV card | TVs and certificates as master–detail; from 1280 px the install page adds a side column (Host PC IP, recent installations) |
 
-Pages share one container (max 74 rem, 32–40 px gutters), so titles never jump between sections; reading pages keep 46 rem. Safe areas: `safe-top`, `safe-bottom`, `safe-x` on bars, sheets and the dock; `dvh` and `adjustResize` for the keyboard. Use `min-w-0` on flex children with text, `flex-wrap` for action rows and container queries (`@container`) for components that appear at different widths.
+Pages share one container (max 74 rem, 32–40 px gutters), so titles never jump between sections; reading pages keep 46 rem. Safe areas: `safe-top`, `safe-bottom`, `safe-x` on bars, sheets and the dock — never on the same element as padding for that side (one would silently replace the other; `scripts/safe-area.test.ts` enforces it): put the inset on a wrapper or use `calc(… + env(safe-area-inset-…))`; `dvh` and `adjustResize` for the keyboard. Use `min-w-0` on flex children with text, `flex-wrap` for action rows and container queries (`@container`) for components that appear at different widths.
 
 ### The install page
 

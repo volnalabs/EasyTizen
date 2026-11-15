@@ -2,7 +2,7 @@ import { ArrowRightLeft, KeyRound, Plus, ShieldAlert, ShieldCheck, Trash2, Uploa
 import { useState } from "react";
 import { useApp } from "../app/context";
 import { ListItem, SplitView, useSplit } from "../components/SplitView";
-import { Button, DataList, DialogCancel, EmptyState, Field, Modal, PageHeader, Pill, Row, useToast, type Tone } from "../components/ui";
+import { Button, DataList, DialogCancel, EmptyState, Field, Modal, PageHeader, PasswordInput, Pill, Row, type Tone, useToast } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import { daysLeft, formatDate } from "../lib/format";
 import { isTizenProfile } from "../lib/tv";
@@ -29,7 +29,7 @@ function TransferDialog({ profile, onClose, onDone }: { profile: CertificateProf
       <form onSubmit={(e) => { e.preventDefault(); void transfer(); }} className="space-y-3">
         <p className="text-muted">{t("certTransferBody", { name: profile.name })}</p>
         <Field label={t("passwordLabel")} error={error}>
-          <input className="input" type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" aria-invalid={!!error} enterKeyHint="done" />
+          <PasswordInput autoFocus value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" aria-invalid={!!error} enterKeyHint="done" />
         </Field>
         <p className="text-small text-muted">{t("certTransferImportHint")}</p>
       </form>

@@ -17,6 +17,7 @@
   --bg: #f4f4f1;               /* warm paper */
   --surface: #ffffff;          /* panels, bars, dialogs */
   --raised: #ffffff;           /* selected segment, active nav item, switch knob */
+  --dialog: #ffffff;           /* dialogs and bottom sheets */
   /* Neutral fills: alpha, so they work on any surface. */
   --fill-1: rgb(17 18 22 / 0.045);   /* hover, input wells, tonal buttons */
   --fill-2: rgb(17 18 22 / 0.075);   /* pressed, secondary button */
@@ -56,6 +57,7 @@
   --bg: #0d0e11;               /* graphite, not pure black */
   --surface: #15161a;
   --raised: #2a2c33;
+  --dialog: #1d1e23;           /* a step above the scrim, so no outline is needed */
   --fill-1: rgb(255 255 255 / 0.05);
   --fill-2: rgb(255 255 255 / 0.085);
   --fill-3: rgb(255 255 255 / 0.13);
@@ -77,9 +79,9 @@
   --warn-soft: #2a2113;
   --err: #ff8f87;
   --err-soft: #2e1716;
-  --shadow-card: 0 0 0 1px rgb(0 0 0 / 0.2);
+  --shadow-card: none;         /* panels are separated by their surface and hairline */
   --shadow-raised: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 2px 8px -2px rgb(0 0 0 / 0.6);
-  --shadow-pop: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 24px 64px -16px rgb(0 0 0 / 0.75);
+  --shadow-pop: 0 20px 48px -12px rgb(0 0 0 / 0.55);
   --focus: #7fb0ff;
   --scrim: rgb(0 0 0 / 0.62);
   --dock: rgb(26 27 32 / 0.92);
@@ -96,6 +98,7 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-raised: var(--raised);
+  --color-dialog: var(--dialog);
   --color-fill: var(--fill-1);
   --color-fill-2: var(--fill-2);
   --color-fill-3: var(--fill-3);
