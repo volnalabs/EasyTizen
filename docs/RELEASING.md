@@ -101,4 +101,15 @@ node scripts/release.mjs notes <folder> 1.0.0 notes.md
 node scripts/readme-assets.mjs      # regenerate README artwork
 node scripts/release.mjs updater-manifest <folder> 1.0.0   # latest.json from the .sig files
 node scripts/screenshots.mjs        # regenerate RU and EN screenshots (needs `vite preview` and Playwright)
+node scripts/social-preview.mjs     # repository cover from those screenshots (docs/readme/social-preview-*.png)
 ```
+
+## Repository card
+
+GitHub shows these on the repository page, in search and when a link is shared. They are set by hand (there is no API for the cover); refresh them when the interface changes.
+
+- **Cover** — Settings → General → Social preview → Edit → upload `docs/readme/social-preview-en.png` (1280×640; `social-preview-ru.png` is the Russian variant). Regenerate with `node scripts/social-preview.mjs` after new screenshots.
+- **Description** — the ⚙ next to "About" on the repository page:
+  > Install .wgt apps on Samsung Smart TVs (Tizen) from Windows, macOS, Linux or straight from an Android phone. No Tizen SDK: finds the TV, creates the certificate, signs, checks and installs.
+- **Website** — `https://github.com/volnalabs/TV-Deploy/releases/latest`
+- **Topics** (20, GitHub's maximum): `samsung-tv` `tizen` `tizen-tv` `samsung` `smart-tv` `wgt` `sideload` `app-installer` `developer-mode` `sdb` `tauri` `tauri-app` `rust` `react` `typescript` `android` `windows` `macos` `linux` `cross-platform`
