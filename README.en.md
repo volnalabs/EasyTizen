@@ -43,12 +43,8 @@ EasyTizen is an independent open-source tool. It ships no TV apps and downloads 
 <td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe"><img src="docs/readme/d-windows-en.svg" width="100%" alt="EasyTizen-Windows-x64-Setup.exe — Windows"></a></td>
 </tr>
 <tr>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-ARM64.dmg"><img src="docs/readme/d-mac-arm-en.svg" width="100%" alt="EasyTizen-macOS-ARM64.dmg — macOS on Apple silicon"></a></td>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-Intel.dmg"><img src="docs/readme/d-mac-intel-en.svg" width="100%" alt="EasyTizen-macOS-Intel.dmg — macOS on Intel"></a></td>
-</tr>
-<tr>
+<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"><img src="docs/readme/d-mac-en.svg" width="100%" alt="EasyTizen-macOS.app.tar.gz — macOS (Apple silicon and Intel)"></a></td>
 <td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.AppImage"><img src="docs/readme/d-appimage-en.svg" width="100%" alt="EasyTizen-Linux-x64.AppImage — Linux"></a></td>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.deb"><img src="docs/readme/d-deb-en.svg" width="100%" alt="EasyTizen-Linux-x64.deb — Debian, Ubuntu"></a></td>
 </tr>
 <tr>
 <td colspan="2"><a href="https://github.com/volnalabs/TV-Deploy/releases"><img src="docs/readme/p-all-en.svg" width="50%" alt="All versions and source code"></a></td>
@@ -330,8 +326,8 @@ The app starts like any Windows program, without a black console window. Errors 
 
 macOS 10.15 or newer.
 
-1. Download the file for your processor (Apple menu → About This Mac): [Apple M1 and newer](https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-ARM64.dmg) or [Intel](https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-Intel.dmg).
-2. Open the `.dmg` and drag EasyTizen to Applications.
+1. Download [`EasyTizen-macOS.app.tar.gz`](https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz) — one file for Macs with Apple silicon and Intel.
+2. Double-click it (Safari often unpacks it by itself) — **EasyTizen** appears. Drag it to Applications.
 3. **First launch.** Until the app is notarized by Apple, macOS blocks it. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to the EasyTizen message.
 
 If macOS says the app is damaged, run in Terminal:
@@ -340,7 +336,6 @@ If macOS says the app is damaged, run in Terminal:
 xattr -cr /Applications/EasyTizen.app
 ```
 
-> [!IMPORTANT]
 <sub><a href="#install">↑ back to devices</a></sub>
 
 <a name="linux"></a>
@@ -349,22 +344,17 @@ xattr -cr /Applications/EasyTizen.app
 
 64-bit, with WebKitGTK 4.1 (Ubuntu 22.04+, Debian 12, Fedora 38+).
 
-**AppImage — any distribution:**
+One file for every distribution — an AppImage, nothing to install:
 
 ```sh
 chmod +x EasyTizen-Linux-x64.AppImage
 ./EasyTizen-Linux-x64.AppImage
 ```
 
-If it does not start on Ubuntu 22.04 or newer, install `libfuse2`: `sudo apt install libfuse2`.
+If it does not start on Ubuntu 22.04 or newer, install `libfuse2`: `sudo apt install libfuse2`. The AppImage updates itself.
 
-**DEB — Debian, Ubuntu, Mint:**
-
-```sh
-sudo apt install ./EasyTizen-Linux-x64.deb
-```
-
-EasyTizen then appears in the applications menu. To remove it: `sudo apt remove easy-tizen`.
+> [!NOTE]
+> The `.deb` package is no longer published. If you installed EasyTizen from the `.deb`, remove it (`sudo apt remove easy-tizen`) and use the AppImage — your settings, TVs and certificates are kept.
 
 <sub><a href="#install">↑ back to devices</a></sub>
 
@@ -675,7 +665,7 @@ cargo run -p easytizen-core --example mock_tv --features mock-tv -- 0.0.0.0 2610
 
 # Desktop
 npx tauri dev
-npx tauri build --bundles appimage,deb    # nsis | dmg
+npx tauri build --bundles appimage         # nsis | app (--target universal-apple-darwin)
 
 # Android
 export ANDROID_HOME=… NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018

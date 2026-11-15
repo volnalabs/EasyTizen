@@ -43,12 +43,8 @@ EasyTizen — самостоятельный инструмент с откры�
 <td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe"><img src="docs/readme/d-windows-ru.svg" width="100%" alt="EasyTizen-Windows-x64-Setup.exe — Windows"></a></td>
 </tr>
 <tr>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-ARM64.dmg"><img src="docs/readme/d-mac-arm-ru.svg" width="100%" alt="EasyTizen-macOS-ARM64.dmg — macOS на процессорах Apple"></a></td>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-Intel.dmg"><img src="docs/readme/d-mac-intel-ru.svg" width="100%" alt="EasyTizen-macOS-Intel.dmg — macOS на процессорах Intel"></a></td>
-</tr>
-<tr>
+<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"><img src="docs/readme/d-mac-ru.svg" width="100%" alt="EasyTizen-macOS.app.tar.gz — macOS (Apple и Intel)"></a></td>
 <td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.AppImage"><img src="docs/readme/d-appimage-ru.svg" width="100%" alt="EasyTizen-Linux-x64.AppImage — Linux"></a></td>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.deb"><img src="docs/readme/d-deb-ru.svg" width="100%" alt="EasyTizen-Linux-x64.deb — Debian, Ubuntu"></a></td>
 </tr>
 <tr>
 <td colspan="2"><a href="https://github.com/volnalabs/TV-Deploy/releases"><img src="docs/readme/p-all-ru.svg" width="50%" alt="Все версии и исходный код"></a></td>
@@ -330,8 +326,8 @@ Windows 10 и 11, 64-bit.
 
 macOS 10.15 и новее.
 
-1. Скачайте файл под свой процессор (меню Apple → «Об этом Mac»): [Apple M1 и новее](https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-ARM64.dmg) или [Intel](https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-Intel.dmg).
-2. Откройте `.dmg` и перетащите EasyTizen в «Программы».
+1. Скачайте [`EasyTizen-macOS.app.tar.gz`](https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz) — один файл для Mac на процессорах Apple и Intel.
+2. Откройте его двойным щелчком (Safari часто распаковывает сам) — появится **EasyTizen**. Перетащите его в «Программы».
 3. **Первый запуск.** Пока приложение не нотаризовано Apple, macOS его заблокирует. Откройте **Системные настройки → Конфиденциальность и безопасность**, прокрутите вниз и нажмите **«Всё равно открыть»** рядом с сообщением об EasyTizen.
 
 Если macOS пишет, что приложение повреждено, выполните в Терминале:
@@ -348,22 +344,17 @@ xattr -cr /Applications/EasyTizen.app
 
 64-bit, с WebKitGTK 4.1 (Ubuntu 22.04 и новее, Debian 12, Fedora 38 и новее).
 
-**AppImage — для любого дистрибутива:**
+Один файл для любого дистрибутива — AppImage, устанавливать ничего не нужно:
 
 ```sh
 chmod +x EasyTizen-Linux-x64.AppImage
 ./EasyTizen-Linux-x64.AppImage
 ```
 
-Если не запускается на Ubuntu 22.04 и новее — установите `libfuse2`: `sudo apt install libfuse2`.
+Если не запускается на Ubuntu 22.04 и новее — установите `libfuse2`: `sudo apt install libfuse2`. Обновления AppImage ставит сам.
 
-**DEB — для Debian, Ubuntu, Mint:**
-
-```sh
-sudo apt install ./EasyTizen-Linux-x64.deb
-```
-
-После этого EasyTizen появится в меню приложений. Удаление: `sudo apt remove easy-tizen`.
+> [!NOTE]
+> Пакет `.deb` больше не выпускается. Если EasyTizen был установлен из `.deb`, удалите его (`sudo apt remove easy-tizen`) и пользуйтесь AppImage — настройки, телевизоры и сертификаты сохранятся.
 
 <sub><a href="#install">↑ к выбору устройства</a></sub>
 
@@ -674,7 +665,7 @@ cargo run -p easytizen-core --example mock_tv --features mock-tv -- 0.0.0.0 2610
 
 # Компьютер
 npx tauri dev
-npx tauri build --bundles appimage,deb    # nsis | dmg
+npx tauri build --bundles appimage         # nsis | app (--target universal-apple-darwin)
 
 # Android
 export ANDROID_HOME=… NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018

@@ -87,12 +87,12 @@ jobs:
           SIGNING_UPDATER: ${{ needs.build.outputs.signing_updater }}
         run: |
           node scripts/release.mjs verify release
-          # latest.json: what the in-app updater of every installed EasyTizen reads.
-          if [ "$SIGNING_UPDATER" = "signed" ]; then
-            node scripts/release.mjs updater-manifest release "${{ needs.prepare.outputs.version }}"
-          fi
+          # latest.json: what the in-app updater of every installed EasyTizen reads (signatures
+          # and the APK's SHA-256 are inside it).
+          node scripts/release.mjs updater-manifest release "${{ needs.prepare.outputs.version }}"
+          # Writes the notes and removes the .sig files: the release shows four installers + latest.json.
           node scripts/release.mjs notes release "${{ needs.prepare.outputs.version }}" release-notes.md
-          cat release/SHA256SUMS.txt
+          ls -la release
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:

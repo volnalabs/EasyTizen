@@ -88,10 +88,8 @@ for (const [name, ic] of Object.entries(features)) save(`f-${name}`, svg(64, 64,
 const downloads = [
   ["android", "phone", "EasyTizen-Android.apk", "Android 7.0+ · телефоны и планшеты", "Android 7.0+ · phones and tablets"],
   ["windows", "windows", "EasyTizen-Windows-x64-Setup.exe", "Windows 10 и 11 · 64-bit", "Windows 10 and 11 · 64-bit"],
-  ["mac-arm", "laptop", "EasyTizen-macOS-ARM64.dmg", "macOS · процессоры Apple (M1 и новее)", "macOS · Apple silicon (M1 and newer)"],
-  ["mac-intel", "laptop", "EasyTizen-macOS-Intel.dmg", "macOS · процессоры Intel", "macOS · Intel processors"],
+  ["mac", "laptop", "EasyTizen-macOS.app.tar.gz", "macOS 10.15+ · Apple и Intel", "macOS 10.15+ · Apple silicon and Intel"],
   ["appimage", "terminal", "EasyTizen-Linux-x64.AppImage", "Linux · любой дистрибутив, 64-bit", "Linux · any distribution, 64-bit"],
-  ["deb", "terminal", "EasyTizen-Linux-x64.deb", "Debian · Ubuntu · Mint, 64-bit", "Debian · Ubuntu · Mint, 64-bit"],
 ];
 for (const [name, ic, file, ru, en] of downloads) {
   for (const [lang, sub] of [["ru", ru], ["en", en]]) {
@@ -105,8 +103,8 @@ for (const [name, ic, file, ru, en] of downloads) {
 const cards = [
   ["android", "phone", "Android", "APK · без компьютера · 2 мин", "Android", "APK · no computer needed · 2 min"],
   ["windows", "windows", "Windows", "Установщик .exe · 2 мин", "Windows", ".exe installer · 2 min"],
-  ["macos", "laptop", "macOS", "Apple silicon и Intel · 3 мин", "macOS", "Apple silicon and Intel · 3 min"],
-  ["linux", "terminal", "Linux", "AppImage или .deb · 2 мин", "Linux", "AppImage or .deb · 2 min"],
+  ["macos", "laptop", "macOS", "Apple и Intel · один файл · 3 мин", "macOS", "Apple and Intel · one file · 3 min"],
+  ["linux", "terminal", "Linux", "AppImage · любой дистрибутив · 2 мин", "Linux", "AppImage · any distribution · 2 min"],
   ["tv", "tv", "Телевизор Samsung", "Режим разработчика · 3 мин", "Samsung TV", "Developer Mode · 3 min"],
   ["first", "tvplay", "Первая установка", "ТВ → сертификат → WGT", "First installation", "TV → certificate → WGT"],
   ["all", "list", "Все версии и исходный код", "Страница релизов на GitHub", "All versions and source code", "Releases page on GitHub"],

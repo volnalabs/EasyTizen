@@ -8,7 +8,8 @@
 //!   `.deb`/`.rpm` package manager need the app closed or an administrator prompt, so they only
 //!   run when the user confirms.
 //! * **Android** — the release APK is downloaded into the app's cache, checked against the
-//!   release's `SHA256SUMS.txt` and, when the build carries the key, its minisign signature, then
+//!   SHA-256 in the release's `latest.json` and, when the build carries the key, the minisign
+//!   signature published there (older releases: `SHA256SUMS.txt` and `.apk.sig`), then
 //!   handed to Android's package installer. Android shows its own confirmation and refuses an APK
 //!   signed with a different key than the installed app. Installations from Google Play are left
 //!   to Google Play.
@@ -83,6 +84,16 @@ enum Found {
     Apk {
         version: String,
         url: String,
+        /// Where the APK's SHA-256 (and signature) are published: `latest.json`, or the separate
+        /// `SHA256SUMS.txt` / `.apk.sig` files of releases before 1.0.
+        source: ApkChecks,
+    },
+}
+
+#[cfg(mobile)]
+enum ApkChecks {
+    Manifest(String),
+    Legacy {
         sums_url: String,
         sig_url: Option<String>,
     },
@@ -222,27 +233,39 @@ async fn platform_check(
         status.manual_reason = Some("play");
         return;
     }
-    let (Some(apk), Some(sums)) = (
-        release.asset(android::APK_ASSET),
-        release.asset("SHA256SUMS.txt"),
-    ) else {
+    let Some(apk) = release.asset(android::APK_ASSET) else {
         status.manual_reason = Some("release_unsigned");
         return;
     };
-    let sig = release
-        .asset(&format!("{}.sig", android::APK_ASSET))
-        .map(|a| a.url.clone());
-    if pubkey().is_some() && sig.is_none() {
-        status.manual_reason = Some("release_unsigned");
-        return;
-    }
+    let source = match (
+        release.asset("latest.json"),
+        release.asset("SHA256SUMS.txt"),
+    ) {
+        (Some(manifest), _) => ApkChecks::Manifest(manifest.url.clone()),
+        (None, Some(sums)) => {
+            let sig = release
+                .asset(&format!("{}.sig", android::APK_ASSET))
+                .map(|a| a.url.clone());
+            if pubkey().is_some() && sig.is_none() {
+                status.manual_reason = Some("release_unsigned");
+                return;
+            }
+            ApkChecks::Legacy {
+                sums_url: sums.url.clone(),
+                sig_url: sig,
+            }
+        }
+        (None, None) => {
+            status.manual_reason = Some("release_unsigned");
+            return;
+        }
+    };
     status.install = "apk";
     status.size = Some(apk.size);
     *updates.found.lock().unwrap() = Some(Found::Apk {
         version: release.version.clone(),
         url: apk.url.clone(),
-        sums_url: sums.url.clone(),
-        sig_url: sig,
+        source,
     });
 }
 
@@ -364,17 +387,21 @@ async fn platform_download(
     op_id: Option<String>,
     dir: &std::path::Path,
 ) -> ApiResult<(Ready, UpdateReady)> {
-    let (version, url, sums_url, sig_url) = match updates.found.lock().unwrap().as_ref() {
+    let (version, url, source) = match updates.found.lock().unwrap().as_ref() {
         Some(Found::Apk {
             version,
             url,
-            sums_url,
-            sig_url,
+            source,
         }) => (
             version.clone(),
             url.clone(),
-            sums_url.clone(),
-            sig_url.clone(),
+            match source {
+                ApkChecks::Manifest(u) => ApkChecks::Manifest(u.clone()),
+                ApkChecks::Legacy { sums_url, sig_url } => ApkChecks::Legacy {
+                    sums_url: sums_url.clone(),
+                    sig_url: sig_url.clone(),
+                },
+            },
         ),
         _ => return Err(update_error("not_checked")),
     };
@@ -384,13 +411,29 @@ async fn platform_download(
     tauri::async_runtime::spawn_blocking(move || -> ApiResult<()> {
         let digest = core_update::download(&url, &target, android::MAX_APK_BYTES, &mut emit)
             .map_err(|c| update_error(&c))?;
-        let sums = core_update::fetch_text(&sums_url).map_err(|c| update_error(&c))?;
-        let expected = core_update::sha256_from_sums(&sums, android::APK_ASSET);
+        let (expected, signature) = match source {
+            ApkChecks::Manifest(manifest_url) => {
+                let text = core_update::fetch_text(&manifest_url).map_err(|c| update_error(&c))?;
+                match core_update::android_from_manifest(&text) {
+                    Some((sha, signature)) => (Some(sha), signature),
+                    None => (None, None),
+                }
+            }
+            ApkChecks::Legacy { sums_url, sig_url } => {
+                let sums = core_update::fetch_text(&sums_url).map_err(|c| update_error(&c))?;
+                let signature = match sig_url {
+                    Some(u) => Some(core_update::fetch_text(&u).map_err(|c| update_error(&c))?),
+                    None => None,
+                };
+                (
+                    core_update::sha256_from_sums(&sums, android::APK_ASSET),
+                    signature,
+                )
+            }
+        };
         let checked = expected == Some(digest)
-            && match (pubkey(), sig_url) {
-                (Some(key), Some(sig_url)) => {
-                    let signature =
-                        core_update::fetch_text(&sig_url).map_err(|c| update_error(&c))?;
+            && match (pubkey(), signature) {
+                (Some(key), Some(signature)) => {
                     let data = std::fs::read(&target).map_err(|_| ApiError::new("io_error"))?;
                     if core_update::verify_minisign(&data, &signature, key).is_err() {
                         let _ = std::fs::remove_file(&target);

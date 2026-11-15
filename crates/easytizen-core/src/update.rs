@@ -4,9 +4,10 @@
 //! * [`latest_release`] — the same request, with notes, publication date and asset sizes.
 //! * [`download`] — streams a release asset to disk with a size cap, reporting progress and
 //!   computing its SHA-256 on the way.
-//! * [`sha256_from_sums`] / [`verify_minisign`] — the checks applied before a downloaded file is
-//!   handed to an installer: the checksum published in the release's `SHA256SUMS.txt` and,
+//! * [`android_from_manifest`] / [`verify_minisign`] — the checks applied before a downloaded APK
+//!   is handed to Android's installer: the SHA-256 published in the release's `latest.json` and,
 //!   when the build carries the project's update key, the minisign signature made in CI.
+//!   [`sha256_from_sums`] reads the separate `SHA256SUMS.txt` of releases before 1.0.
 //!
 //! The desktop self-update itself is done by the Tauri updater (same minisign key); see
 //! `src-tauri/src/updates.rs`.
@@ -55,8 +56,8 @@ pub fn installer_asset(os: &str, arch: &str) -> &'static str {
     match (os, arch) {
         ("android", _) => "EasyTizen-Android.apk",
         ("windows", _) => "EasyTizen-Windows-x64-Setup.exe",
-        ("macos", "aarch64") => "EasyTizen-macOS-ARM64.dmg",
-        ("macos", _) => "EasyTizen-macOS-Intel.dmg",
+        // One universal build for Apple silicon and Intel.
+        ("macos", _) => "EasyTizen-macOS.app.tar.gz",
         _ => "EasyTizen-Linux-x64.AppImage",
     }
 }
@@ -198,15 +199,37 @@ pub fn latest_release() -> Result<ReleaseInfo, String> {
 pub fn sha256_from_sums(sums: &str, file: &str) -> Option<[u8; 32]> {
     sums.lines().find_map(|line| {
         let (hex, name) = line.trim().split_once(char::is_whitespace)?;
-        if name.trim().trim_start_matches('*') != file || hex.len() != 64 {
+        if name.trim().trim_start_matches('*') != file {
             return None;
         }
-        let mut out = [0u8; 32];
-        for (i, byte) in out.iter_mut().enumerate() {
-            *byte = u8::from_str_radix(hex.get(i * 2..i * 2 + 2)?, 16).ok()?;
-        }
-        Some(out)
+        parse_hex32(hex)
     })
+}
+
+fn parse_hex32(hex: &str) -> Option<[u8; 32]> {
+    if hex.len() != 64 {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for (i, byte) in out.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(hex.get(i * 2..i * 2 + 2)?, 16).ok()?;
+    }
+    Some(out)
+}
+
+/// The Android entry of a release's `latest.json`: `{"android": {"sha256": "<hex>",
+/// "signature": "<minisign, base64>"}}`. The SHA-256 is required; the signature is present when
+/// the release was signed with the project's update key.
+pub fn android_from_manifest(manifest: &str) -> Option<([u8; 32], Option<String>)> {
+    let value: serde_json::Value = serde_json::from_str(manifest).ok()?;
+    let android = value.get("android")?;
+    let sha = parse_hex32(android.get("sha256")?.as_str()?)?;
+    let signature = android
+        .get("signature")
+        .and_then(|s| s.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    Some((sha, signature))
 }
 
 /// Verifies a minisign signature as produced by `tauri signer sign` (both the public key and
@@ -392,7 +415,7 @@ mod tests {
         assert_eq!(info.latest, "1.1.0");
         assert_eq!(
             info.download_url,
-            "https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS-ARM64.dmg"
+            "https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"
         );
         assert_eq!(
             installer_asset("android", "aarch64"),
@@ -404,11 +427,27 @@ mod tests {
         );
         assert_eq!(
             installer_asset("macos", "x86_64"),
-            "EasyTizen-macOS-Intel.dmg"
+            "EasyTizen-macOS.app.tar.gz"
         );
         assert_eq!(
             installer_asset("linux", "x86_64"),
             "EasyTizen-Linux-x64.AppImage"
         );
+    }
+
+    #[test]
+    fn android_entry_of_the_manifest() {
+        let hex = "ab".repeat(32);
+        let m = format!(
+            r#"{{"version":"1.2.0","platforms":{{}},"android":{{"url":"u","sha256":"{hex}","signature":"SIG"}}}}"#
+        );
+        let (sha, sig) = android_from_manifest(&m).unwrap();
+        assert_eq!(sha, [0xab; 32]);
+        assert_eq!(sig.as_deref(), Some("SIG"));
+        let unsigned = format!(r#"{{"android":{{"sha256":"{hex}"}}}}"#);
+        assert_eq!(android_from_manifest(&unsigned).unwrap().1, None);
+        assert!(android_from_manifest(r#"{"android":{"sha256":"zz"}}"#).is_none());
+        assert!(android_from_manifest(r#"{"platforms":{}}"#).is_none());
+        assert!(android_from_manifest("not json").is_none());
     }
 }
