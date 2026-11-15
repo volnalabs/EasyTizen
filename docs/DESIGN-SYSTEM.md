@@ -1,84 +1,148 @@
-# EasyTizen design system
+# EasyTizen design system — "Signal" (1.0)
 
-The interface is a calm, precise utility: clear hierarchy, restrained colour, hairline borders, moderate radii. Every visual value comes from the tokens below — components never use raw colours, radii or font sizes. Read this before changing the UI; the Claude Code skill in `.claude/skills/easytizen-ui/` follows the same rules.
+EasyTizen is a precise tool for one job: getting an app onto a TV. The interface reads like an instrument panel — warm paper and graphite neutrals, one signal-blue accent taken from the logo, status colours that only ever mean status, and type and spacing doing the work that borders and boxes do elsewhere. Every visual value comes from the tokens below; components never use raw colours, radii or font sizes. The Claude Code skill in `.claude/skills/easytizen-ui/` follows the same rules.
 
 ## Where things live
 
 | File | Contents |
 |---|---|
-| `src/styles/index.css` | tokens (`:root` / `[data-theme="dark"]`), the Tailwind theme mapping, base styles, component classes (`.btn`, `.card`, `.input`, `.chip`, `.data`, `.eyebrow`) |
-| `src/components/ui.tsx` | `Button`, `IconButton`, `Toggle`, `Segmented`, `Pill`, `IconTile`, `DataList`/`Row`, `CopyButton`, `Field`, `Progress`, `Notice`, `Details`, `EmptyState`, `PageHeader`, `Section`, `Modal`, toasts |
+| `src/styles/index.css` | tokens (`:root` / `[data-theme="dark"]`), the Tailwind theme mapping, base styles, component classes (`.btn`, `.icon-btn`, `.panel`, `.input`, `.chip`, `.data`, `.eyebrow`, `.row-btn`), motion |
+| `src/components/ui.tsx` | `Button`, `IconButton`, `Spinner`, `Segmented`, `Toggle`, `Pill`, `StatusDot`, `DataList`/`Row`, `CopyButton`, `Field`, `Progress`, `Notice`, `Details`, `EmptyState`, `PageHeader`, `Section`, `Modal` + `DialogCancel`, toasts, `useMediaQuery` |
+| `src/components/SplitView.tsx` | master–detail layout (`SplitView`, `ListItem`, `useSplit`) for TVs and certificates |
 | `src/i18n/{en,ru}.ts` | every user-visible string |
 
-Base styles are in `@layer base` and component classes in `@layer components`, so Tailwind utilities always win. Do not add unlayered element selectors — they silently override utilities (this once broke every button's font size).
+Base styles are in `@layer base` and component classes in `@layer components`, so Tailwind utilities always win. Do not add unlayered element selectors — they silently override utilities.
 
-## Tokens
+## Colour
 
-Use them through Tailwind: `bg-surface`, `text-muted`, `border-line`, `rounded-card`, `text-body`, `shadow-pop` …
+Use the tokens through Tailwind: `bg-surface`, `text-muted`, `bg-fill`, `border-line`, `text-accent-text` …
 
-**Colour** (light / dark values in `index.css`)
+| Token | Utility | Light | Dark | Use |
+|---|---|---|---|---|
+| `--bg` | `bg-bg` | `#f4f4f1` warm paper | `#0d0e11` graphite | window background |
+| `--surface` | `bg-surface` | `#ffffff` | `#15161a` | panels, bars, dialogs |
+| `--raised` | `bg-raised` | `#ffffff` | `#2a2c33` | selected segment, active sidebar item, switch knob |
+| `--fill-1/2/3` | `bg-fill` / `bg-fill-2` / `bg-fill-3` | ink at 4.5 / 7.5 / 12 % | white at 5 / 8.5 / 13 % | hover · secondary buttons and pressed · switch and progress tracks. Alpha, so they work on any surface |
+| `--line` / `--line-strong` | `border-line` / `border-line-strong` | ink 8 % / 16 % | white 7.5 % / 15 % | hairlines / input outlines, the drop zone |
+| `--text` / `--muted` / `--faint` | `text-fg` / `text-muted` / `text-faint` | `#111216` / `#5c5f67` (6.4:1) / `#8e9098` | `#ecedef` / `#a1a4ac` (7.3:1) / `#6d7078` | primary / secondary / placeholders and disabled only |
+| `--accent` | `bg-accent` | `#1a63e6` (white ink 5.3:1) | `#2a68e8` (4.95:1) | primary buttons, current step, switches, selection |
+| `--accent-text` | `text-accent-text` | `#155acf` (6.2:1) | `#7fb0ff` (8.2:1) | accent as text or icon |
+| `--accent-soft` | `bg-accent-soft` | `#eaf1fe` | `#14233f` | selected rows, active nav pill, info notices |
+| `--ok`, `--warn`, `--err` + `-soft` | `text-ok`, `bg-warn-soft` … | | | status — always with an icon or a word, never colour alone |
+| `--brand-2` | `.brand-gradient` | `#12b8a6` | `#2fd6c3` | the logo's teal: progress fills and the logo only |
 
-| Token | Utility | Use |
+The accent is a signal blue (hue ≈ 217°), between the two stops of the logo. There is one accent: no second brand colour, no decorative gradients, no purple. The logo keeps its own cobalt-to-teal gradient.
+
+## Shape and elevation
+
+| Token | Value | Use |
 |---|---|---|
-| `--bg` | `bg-bg` | window background |
-| `--surface` | `bg-surface` | cards, bars, dialogs |
-| `--surface-2` | `bg-surface-2` | sunken areas, hover, segmented track |
-| `--surface-3` | `bg-surface-3` | pressed, switch track off, progress track |
-| `--border` / `--border-strong` | `border-line` / `border-line-strong` | hairlines / inputs and secondary buttons |
-| `--text` / `--muted` / `--faint` | `text-fg` / `text-muted` / `text-faint` | primary / secondary (≥ 6.4:1) / placeholders and disabled only |
-| `--accent` / `--accent-ink` | `bg-accent text-accent-ink` | primary buttons, active switch (white ink ≥ 4.8:1) |
-| `--accent-text` | `text-accent-text` | accent as text or icon on a surface (≥ 7:1 in dark) |
-| `--accent-soft` / `--accent-line` | `bg-accent-soft` / `border-accent-line` | selection, info notices |
-| `--ok`, `--warn`, `--err` + `-soft` | `text-ok`, `bg-warn-soft` … | status; always paired with an icon or word, never colour alone |
-| `--brand-2` | `.brand-gradient` | second stop of the logo gradient — decorative, progress bars only |
+| `rounded-chip` | pill | status chips |
+| `rounded-control` | 12 px | buttons (`sm` 10 px, `lg` 14 px), inputs, selectable rows |
+| `rounded-card` | 18 px | panels |
+| `rounded-dialog` | 24 px | dialogs and bottom sheets |
 
-**Radius:** `rounded-chip` 6 px (chips) · `rounded-control` 10 px (buttons, inputs) · `rounded-card` 14 px (cards) · `rounded-dialog` 20 px (dialogs, sheets). Inner panels inside a card use 10–12 px.
+Icon tiles are 9–16 px squircles sized with the tile. Shapes follow purpose: a chip is a pill, a control a soft square, a panel calm.
 
-**Type** — Inter 4 variable (bundled, OFL; Latin + Cyrillic), optical sizing on.
+Elevation is quiet and layered — `shadow-card` (panels: a 1–3 px whisper), `shadow-raised` (selected segment, knob, dock, copy chips), `shadow-pop` (dialogs, toasts). No outlines around buttons, no dark halos, no glow. In dark mode depth comes from lighter surfaces, not shadows.
+
+## Type
+
+Inter 4 variable (bundled, OFL; Latin + Cyrillic), optical sizing on, `cv11` (single-storey a) and `ss03` (round quotes).
 
 | Utility | Size | Use |
 |---|---|---|
-| `text-caption` | 12 px | timestamps, step labels, meta — never for actions |
+| `text-micro` | 11 px | navigation labels, eyebrows (uppercase, +0.07 em) |
+| `text-caption` | 12 px | timestamps, meta — never for actions |
 | `text-small` | 13 px | secondary text, hints, small buttons |
 | `text-body` | 14 px | default |
-| `text-emph` | 15 px | item titles (TV, app, certificate) |
-| `text-title` | 17 px | card and dialog titles |
-| `text-heading` | 22 px | page titles |
-| `text-display` | 28 px | first run, success |
+| `text-emph` | 15 px | item and step titles |
+| `text-title` | 17 px | panel and dialog titles |
+| `text-heading` | 26 px | page titles, tracking −0.025 em |
+| `text-display` | 32 px | first run, success, tracking −0.03 em |
 
-All sizes are `rem`. On touch devices (`:root[data-touch]`, set on Android and coarse pointers) the root is 17 px, so text and spacing grow together; Android's system font size scales the WebView text on top (`MainActivity.onWebViewCreate`). Weight carries hierarchy (400 / 500 / 600), tracking is slightly negative only from `text-title` up.
+All sizes are `rem`. On touch devices (`:root[data-touch]`, set on Android and coarse pointers) the root is 17 px, so text, controls and spacing grow together; Android's system font size scales the WebView on top. Weight carries hierarchy (400 / 500 / 600). Technical values (IP, DUID, IDs, versions, sizes) use `.data`: tabular figures, slashed zero, disambiguated I/l, and they wrap instead of being cut off.
 
-Technical values (IP, DUID, IDs, paths, versions) use `.data`: tabular figures, slashed zero, disambiguated I/l, and they wrap instead of being cut off.
+## Components
 
-**Elevation:** `shadow-card` (cards), `shadow-raised` (selected segment, switch knob), `shadow-pop` (dialogs, toasts). Borders do most of the work; shadows are subtle.
+**Buttons** — one obvious primary per area.
 
-**Motion:** `fade-up`, `fade-in`, `pop-in`, `sheet-in` (bottom sheet on phones), 150–300 ms ease-out. `prefers-reduced-motion` turns animations off; indeterminate progress then shows a static bar.
+| Variant | Look | Use |
+|---|---|---|
+| `primary` | accent fill, white ink, faint top highlight | the next step: Find TVs, Install on TV, Create certificate |
+| `secondary` | tonal (`fill-2`), no border | alternatives: Change, Other file, Import, Check connection |
+| `ghost` | text only, fill on hover | tertiary: Cancel in dialogs, History, Clear history |
+| `danger` | solid error colour | the confirming button of a destructive dialog |
+| `link` | accent text | inline navigation, help |
+| `IconButton` | 36 px (44 px touch), `tone="danger"` reddens on hover | compact actions; always labelled |
 
-**Focus:** keyboard focus is a 2 px outline (`--focus`) with 2 px offset — never a box-shadow, so it cannot be hidden by component shadows. Inputs show a soft ring instead.
+States: hover (darker fill), pressed (`scale(.975)` + darker), focus (2 px outline, 2 px offset), disabled (its own neutral look — `fill-1` and faint text, not a faded primary), loading (`busy`: the `icon` turns into a spinner, label stays, `aria-busy`). Sizes `sm` 32 / `md` 40 / `lg` 48 px; on touch 40 / 46 / 52 px. Labels may wrap; never shrink the text. A destructive action is a ghost button in red at the bottom of a detail and always opens a confirmation.
 
-## Components and patterns
+**Inputs** — 42 px (48 px touch), 12 px radius, hairline outline, accent border + 4 px soft ring on focus, error border and an icon + message below. `enterKeyHint` and `inputMode` set for the on-screen keyboard.
 
-- **Buttons:** one primary action per area. `sm` 32 px / `md` 40 px / `lg` 48 px; on touch `sm` 38 px and `md` 44 px. Labels may wrap; never shrink the text. Destructive actions use `danger` and sit behind a confirmation.
-- **Switches:** `Toggle` — the whole row (title + description) is the control, `role="switch"`.
-- **Key/value data:** `DataList` + `Row`. Side by side in wide containers, stacked when narrow (container query) — values are never truncated. Long IDs get a `CopyButton`.
-- **Notices:** say what happened, why, and what to do next; technical text goes into `Details`. Plain-language error strings live in the locale files (`err_*`).
-- **Dialogs:** `Modal` renders in a portal, traps focus, restores it on close, is a bottom sheet under 640 px with full-width stacked footer buttons, and respects the safe area.
-- **Lists of devices/apps:** names wrap (two lines are fine), status is a word plus colour.
-- **Settings:** `Section` = small uppercase heading above a card. Segmented controls stretch to the full width on phones.
-- **Icons:** lucide only, 16 px in buttons, 18–20 px in navigation and tiles, default stroke (1.8–2.1 in navigation).
+**Switches** — `Toggle`: the whole row is the control (`role="switch"`), 44 × 26 px track, spring-eased knob with a check.
+
+**Segmented** — 2–4 options with a sliding thumb (measured, animated), arrow keys move the choice. `stretch` fills the row.
+
+**Lists** — a panel with hairline dividers; rows are buttons (`.row-btn`) with a 40 px tile, a title that wraps and one meta line. Status is a word in a chip or a dot with a word. No card per item.
+
+**Panels** — `.panel`: surface, hairline, 18 px radius, whisper shadow. Never nest a panel inside a panel; inside a panel use dividers, `bg-fill` wells or plain spacing.
+
+**Notices** — tinted wells without borders. The title says what happened, the body why and what to do next; technical text goes into `Details`. `DiagnosisPanel` adds numbered steps and the collapsible "What was checked".
+
+**Disclosure** — `Details`: default (monospaced technical text in a scrollable well), `prose` (long readable text, release notes), `inline` (lists and key/value data in place).
+
+**Dialogs and sheets** — `Modal` renders in a portal, traps focus and restores it, closes on Escape and on the scrim. Under 600 px it is a bottom sheet with a grab handle, full-width stacked footer buttons and the safe area; from 600 px a centred dialog. `DialogCancel` (and Escape/scrim/×) play the closing animation before `onClose`.
+
+**Toasts** — bottom centre, above the phone dock; slide in, fade out; errors stay 6 s.
+
+**Progress** — 4–6 px track, the brand gradient as fill; a travelling stripe when indeterminate, a static bar with reduced motion. Installation shows the current stage, its percentage and every stage with done/active/waiting marks.
+
+**Status dot** — `StatusDot` with `live` adds a soft pulse for a connected TV.
+
+**Icons** — lucide only: 16 px in buttons, 18–21 px in navigation and tiles, stroke 1.9 (2.2 when active).
 
 ## Layout
 
-- Desktop (`md` and up, ≥ 768 px): 240 px sidebar with the TV status card; content column max 50 rem (54 rem from `xl`), 32 px gutters.
-- Phones: top bar (logo, demo badge, History), four-tab bottom bar (Install, TVs, Certificates, Settings), 16 px gutters, `safe-top`/`safe-bottom`/`safe-x` for system bars and cut-outs, `adjustResize` + `dvh` for the keyboard.
-- Use `min-w-0` on flex children that hold text, `flex-[1_1_Nrem]` + `flex-wrap` for action rows, container queries (`@container`) for components that appear in different widths.
+| Width | Navigation | Composition |
+|---|---|---|
+| < 600 px (phones) | top bar (logo, demo badge, History) + floating four-tab dock with a sliding pill; the dock hides while the keyboard is up | one column, 16 px gutters, dialogs as bottom sheets, list → detail as separate screens |
+| 600–1023 px (tablets portrait, narrow windows) | navigation rail with all five sections and a TV indicator | one column up to 46 rem, centred dialogs |
+| ≥ 1024 px (desktop, tablets landscape) | 264 px sidebar with the connected-TV card | TVs and certificates as master–detail; from 1280 px the install page adds a side column (Host PC IP, recent installations) |
+
+Pages share one container (max 74 rem, 32–40 px gutters), so titles never jump between sections; reading pages keep 46 rem. Safe areas: `safe-top`, `safe-bottom`, `safe-x` on bars, sheets and the dock; `dvh` and `adjustResize` for the keyboard. Use `min-w-0` on flex children with text, `flex-wrap` for action rows and container queries (`@container`) for components that appear at different widths.
+
+### The install page
+
+A rail of four steps — **TV → App → Signature → Install** — each with a mark (number, ✓ done, ! attention, faded when locked) and its panel. A done step collapses into a one-line summary with a "Change" action and details on demand; the next step is highlighted; a locked step says in one line what it is waiting for. The package check is a single status line ("File checked — no problems found") that expands to the full list, and opens by itself when something is wrong. While an installation runs, earlier steps are locked; the result replaces the install panel and scrolls into view.
+
+## Motion
+
+Short and purposeful, 120–260 ms, `--ease-out` `cubic-bezier(.22,1,.36,1)` (exits use `--ease-in`, the switch knob `--ease-spring`).
+
+| Where | Animation |
+|---|---|
+| page change | `page-in`: fade + 4 px rise, 200 ms |
+| dock / segmented / switch | sliding indicator 200–240 ms |
+| dialogs | scrim fade; sheet slides up (260 ms) / dialog pops in (200 ms); exit 140–180 ms |
+| toasts | `toast-in` / `toast-out` |
+| steps | marks change colour (300 ms), the ✓ pops in, the rail turns green; panels `fade-up` |
+| connection | `signal` pulse on the live dot |
+| success | the circle pops, the check draws itself |
+| buttons | pressed scale, colour transitions 160 ms |
+
+`prefers-reduced-motion` turns animations off (indeterminate progress becomes static, dialogs close at once). No artificial delays.
+
+## Accessibility
+
+Visible focus outline everywhere (never a shadow), labels for icon buttons, `role="switch"` rows, radio groups for segmented controls and certificate choice, `aria-current` for navigation and the current step (plus a hidden word for each step state), `aria-live` for search, checks, progress and results, status never by colour alone, touch targets ≥ 44 px on touch devices.
 
 ## Language
 
-All copy is in `src/i18n`; components contain no Russian or English text. `npm test` checks that both languages have the same keys and placeholders and that every code the backend can return is translated. Bottom-bar labels must stay within 11 Cyrillic / 12 Latin characters (tested). The UI uses logical alignment (`text-start`, `justify-start`) where it matters; right-to-left languages are not supported yet.
+All copy is in `src/i18n`; components contain no Russian or English text. Short, plain, no bureaucratic phrasing; technical detail goes into disclosures. `npm test` checks that both languages have the same keys and placeholders, that every code the backend can return is translated, and that dock labels fit a 320 px screen (≤ 11 Cyrillic / 12 Latin characters). Logical alignment (`text-start`, `ms-*`/`me-*`) where it matters; right-to-left languages are not supported yet.
 
 ## Checking a change
 
-1. `npm run dev`, then open `http://localhost:1420/?lang=ru` and `?lang=en`, with `&platform=android` for the phone layout, `&demo=fresh` for first run, `&update=available`, `&checks=off` or `&checks=fail` for those states.
-2. Look at 320, 360, 375, 390, 412, 480 px and at 1024×640, 1280×720, 1366×768, 1440×900, 1920×1080, in both themes and both languages.
-3. Regenerate the README screenshots with `node scripts/screenshots.mjs` (both languages) when screens change.
+1. `npm run dev`, then open `http://localhost:1420/?lang=ru` and `?lang=en`, with `&platform=android` for the phone build, `&demo=fresh` for first run, `&update=available`, `&checks=off` or `&checks=fail`, `&legacy=1`, `&theme=light|dark`.
+2. Look at 320, 360, 375, 390, 412, 480 px; 600, 768, 834, 1024 px portrait and landscape; 1024×640, 1280×720, 1366×768, 1440×900, 1920×1080 — both themes, both languages. `node scripts/ui-audit.mjs` (with `npx vite preview --port 4173`) walks all of them automatically and fails on sideways scrolling, elements off screen and clipped labels.
+3. Regenerate the README screenshots with `node scripts/screenshots.mjs` (desktop, phone and tablet, both languages) when screens change.

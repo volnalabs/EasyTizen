@@ -5,7 +5,7 @@
 //   node scripts/screenshots.mjs                 (needs Playwright with Chromium)
 //   node scripts/screenshots.mjs --lang en       (one language only)
 //
-// Output: docs/img/<lang>/desktop-*.png and docs/img/<lang>/android-*.png — the same scenes in
+// Output: docs/img/<lang>/desktop-*.png, android-*.png and tablet-*.png — the same scenes in
 // both languages, so README.md (ru) and README.en.md (en) show the interface in their language.
 //
 // The interface is the application's own frontend; the backend is the in-memory demo backend
@@ -28,6 +28,14 @@ function labels(lang) {
   return out;
 }
 
+/** Form factors: desktop window, phone (Android build), tablet portrait and landscape (Android build). */
+const DEVICES = {
+  desktop: { viewport: { width: 1280, height: 800 }, scale: 1.5, android: false },
+  android: { viewport: { width: 412, height: 892 }, scale: 2, android: true },
+  tablet: { viewport: { width: 834, height: 1194 }, scale: 1.5, android: true },
+  tabletWide: { viewport: { width: 1194, height: 834 }, scale: 1.5, android: true },
+};
+
 const browser = await chromium.launch();
 
 for (const lang of LANGS) {
@@ -35,20 +43,17 @@ for (const lang of LANGS) {
   const OUT = `docs/img/${lang}`;
   mkdirSync(OUT, { recursive: true });
 
-  const page = async ({ mobile = false, theme = "dark", query = "" }) => {
-    const p = await browser.newPage({
-      viewport: mobile ? { width: 412, height: 892 } : { width: 1280, height: 800 },
-      deviceScaleFactor: mobile ? 2 : 1.5,
-      colorScheme: theme,
-      reducedMotion: "reduce",
-    });
+  const page = async ({ device = "desktop", theme = "dark", query = "" }) => {
+    const d = DEVICES[device];
+    const p = await browser.newPage({ viewport: d.viewport, deviceScaleFactor: d.scale, colorScheme: theme, reducedMotion: "reduce", hasTouch: d.android });
     p.on("pageerror", (e) => { throw e; });
-    await p.goto(`${BASE}/?lang=${lang}&theme=${theme}${mobile ? "&platform=android" : ""}${query}`);
+    await p.goto(`${BASE}/?lang=${lang}&theme=${theme}${d.android ? "&platform=android" : ""}${query}`);
     await p.waitForTimeout(700);
     return p;
   };
   const shot = async (p, name) => { await p.waitForTimeout(450); await p.screenshot({ path: `${OUT}/${name}.png` }); console.log(`${lang}/${name}`); };
   const button = (p, name) => p.getByRole("button", { name, exact: false }).first();
+  const nav = (p, name) => p.getByRole("navigation", { name: t.navMain }).getByRole("button", { name, exact: true }).first().click();
   /** Scrolls the main area so `locator` sits near the top of the screen. */
   const reveal = async (p, locator, offset = 16) => {
     await locator.first().evaluate((el, off) => {
@@ -57,34 +62,37 @@ for (const lang of LANGS) {
     }, offset);
     await p.waitForTimeout(250);
   };
+  const step = (p, key) => p.locator("li").filter({ has: p.getByRole("heading", { name: t[key] }) }).first();
 
-  /** Install flow shared by both form factors. */
-  async function flow(p, prefix) {
-    await shot(p, `${prefix}-home`);
+  /** Install flow shared by every form factor. */
+  async function flow(p, prefix, scenes = ["home", "find", "connected", "package", "check", "progress", "success"]) {
+    const want = (s) => scenes.includes(s);
+    if (want("home")) await shot(p, `${prefix}-home`);
     await button(p, t.tvFind).click();
     await p.waitForTimeout(1500);
-    await shot(p, `${prefix}-find`);
+    if (want("find")) await shot(p, `${prefix}-find`);
     await p.getByRole("listitem").getByRole("button", { name: t.tvConnect }).first().click();
     await p.waitForTimeout(1200);
-    await shot(p, `${prefix}-connected`);
+    if (want("connected")) await shot(p, `${prefix}-connected`);
     await button(p, t.dropTitle).click();
     await p.waitForTimeout(1100);
-    await reveal(p, p.getByRole("heading", { name: t.step2, exact: true }));
-    await shot(p, `${prefix}-package`);
-    await reveal(p, p.getByRole("group", { name: t.checksTitle }));
-    await shot(p, `${prefix}-check`);
+    await reveal(p, step(p, "step1"));
+    if (want("package")) await shot(p, `${prefix}-package`);
+    await p.getByRole("button", { name: t.checksWhat }).click();
+    await reveal(p, step(p, "step2"));
+    if (want("check")) await shot(p, `${prefix}-check`);
     await p.getByRole("button", { name: t.installButton }).click();
     await p.waitForTimeout(1900);
-    await reveal(p, p.getByRole("heading", { name: t.step3, exact: true }));
-    await shot(p, `${prefix}-progress`);
+    await reveal(p, step(p, "step4"));
+    if (want("progress")) await shot(p, `${prefix}-progress`);
     await p.getByRole("status").filter({ hasText: t.installSuccessTitle }).first().waitFor({ timeout: 15000 });
-    await reveal(p, p.getByRole("heading", { name: t.step3, exact: true }));
-    await shot(p, `${prefix}-success`);
+    await reveal(p, step(p, "step4"));
+    if (want("success")) await shot(p, `${prefix}-success`);
   }
 
   /** Settings: the update section with a newer release, then the security switch. */
-  async function settings(p, prefix, openNav) {
-    await openNav();
+  async function settings(p, prefix) {
+    await nav(p, t.navSettings);
     await shot(p, `${prefix}-settings`);
     const updates = p.locator("#updates");
     await reveal(p, updates);
@@ -110,34 +118,46 @@ for (const lang of LANGS) {
 
   p = await page({});
   await flow(p, "desktop");
-  await button(p, t.navCerts).click();
+  await nav(p, t.navCerts);
   await shot(p, "desktop-certs");
   await button(p, t.certsCreate).click();
+  await p.getByRole("dialog").waitFor();
   await shot(p, "desktop-cert-new");
   await p.keyboard.press("Escape");
-  await button(p, t.navTvs).click();
+  await p.waitForTimeout(300);
+  await nav(p, t.navTvs);
   await shot(p, "desktop-tvs");
-  await button(p, t.navHistory).click();
+  await nav(p, t.navHistory);
+  await p.getByRole("button", { name: /Media Player/ }).click();
   await shot(p, "desktop-history");
   await p.close();
   p = await page({ query: "&update=available" });
-  await settings(p, "desktop", () => button(p, t.navSettings).click());
+  await settings(p, "desktop");
   await p.close();
 
-  // Android
-  p = await page({ mobile: true, theme: "light", query: "&demo=fresh" });
+  // Android phone
+  p = await page({ device: "android", theme: "light", query: "&demo=fresh" });
   await shot(p, "android-welcome");
   await button(p, t.next).click();
   await shot(p, "android-devmode");
   await p.close();
 
-  p = await page({ mobile: true });
+  p = await page({ device: "android" });
   await flow(p, "android");
-  await button(p, t.navCerts).click();
+  await nav(p, t.navCerts);
   await shot(p, "android-certs");
   await p.close();
-  p = await page({ mobile: true, query: "&update=available" });
-  await settings(p, "android", () => p.getByRole("navigation", { name: t.navMain }).getByRole("button", { name: t.navSettings }).click());
+  p = await page({ device: "android", query: "&update=available" });
+  await settings(p, "android");
+  await p.close();
+
+  // Tablets: navigation rail in portrait, sidebar and master–detail in landscape.
+  p = await page({ device: "tablet", theme: "light" });
+  await flow(p, "tablet", ["package"]);
+  await p.close();
+  p = await page({ device: "tabletWide", theme: "dark" });
+  await nav(p, t.navTvs);
+  await shot(p, "tablet-tvs");
   await p.close();
 }
 
