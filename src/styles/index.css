@@ -207,6 +207,9 @@
     border-radius: var(--radius-control); border: 1px solid var(--line-strong); background: var(--surface);
     padding: 0.5rem 0.875rem; transition: border-color .15s, box-shadow .15s, background-color .15s;
   }
+  input.input[type="password"]::-ms-reveal {
+    display: none;
+  }
   .input::placeholder { color: var(--faint); }
   .input:hover:not(:focus) { border-color: color-mix(in srgb, var(--line-strong) 50%, var(--muted)); }
   .input:focus-visible { outline: none; }
