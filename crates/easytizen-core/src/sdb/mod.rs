@@ -193,7 +193,12 @@ pub fn classify_install_output(output: &str) -> InstallVerdict {
         let kind = if low.contains("author") && (low.contains("match") || low.contains("different"))
         {
             InstallFailure::AuthorMismatch
-        } else if low.contains("certificate") || low.contains("signature") {
+        } else if low.contains("certificate")
+            || low.contains("signature")
+            // Tizen 4 prints only the code: 118 = install error, 012 = certificate check.
+            || low.contains("failed[118012]")
+            || low.contains("failed[118, -12]")
+        {
             InstallFailure::CertificateRejected
         } else if low.contains("space") || low.contains("storage") {
             InstallFailure::NoSpace
@@ -540,6 +545,18 @@ mod tests {
             classify_install_output("closed"),
             InstallVerdict::Failed(InstallFailure::Unrecognised)
         );
+    }
+
+    #[test]
+    fn tizen4_certificate_code_is_a_certificate_rejection() {
+        // Real answer of a Samsung UE24N4500 (Tizen 4.0) to a re-signed package.
+        let log = "install YZhsvNRs8F.kinopubTv\npackage_path /home/owner/share/tmp/sdk_tools/tmp/easytizen-1794713860006.wgt\nwas_install_app return WAS_TRUE\napp_id[YZhsvNRs8F.kinopubTv] install start\napp_id[YZhsvNRs8F.kinopubTv] installing[7]\napp_id[YZhsvNRs8F.kinopubTv] installing[16]\napp_id[YZhsvNRs8F.kinopubTv] install failed[118012]\nspend time for wascmd is [1310]ms\ncmd_ret:0\n";
+        assert_eq!(
+            classify_install_output(log),
+            InstallVerdict::Failed(InstallFailure::CertificateRejected)
+        );
+        // cmd_ret:0 alone never turns a failure into a success.
+        assert_ne!(classify_install_output(log), InstallVerdict::Installed);
     }
 
     #[test]

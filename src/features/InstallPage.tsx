@@ -5,6 +5,7 @@ import { Button, CopyButton, DataList, IconTile, Notice, PageHeader, Pill, Row }
 import { useI18n } from "../hooks/i18n";
 import { api, toApiError } from "../services/api";
 import type { ExtraChecks, OpenedPackage } from "../types";
+import { prefersOriginalSignature } from "../lib/tv";
 import { InstallStep } from "./InstallStep";
 import { PackageStep } from "./PackageStep";
 import { TvFinder } from "./TvFinder";
@@ -49,6 +50,10 @@ export function InstallPage() {
   const [pkg, setPkg] = useState<OpenedPackage | null>(null);
   const [installed, setInstalled] = useState(false);
   const [resign, setResign] = useState(true);
+  // Default for the "sign with my certificate" switch: the TV's Tizen version decides.
+  useEffect(() => {
+    if (pkg) setResign(!prefersOriginalSignature(tv?.tizen_version, pkg.report.signature === "signed_structure"));
+  }, [pkg, tv?.tizen_version]);
   const [checks, setChecks] = useState<{ result: ExtraChecks | null; loading: boolean; error: string | null }>({ result: null, loading: false, error: null });
   const alreadySigned = pkg?.report.signature === "signed_structure";
   const asIs = alreadySigned && !resign;
@@ -100,7 +105,7 @@ export function InstallPage() {
           ) : <TvFinder onConnected={setTv} />}
         </StepCard>
         <StepCard n={2} title={t("step2")} state={s2}>
-          <PackageStep pkg={pkg} onPackage={(p) => { setPkg(p); setInstalled(false); setResign(true); }} checks={checks.result} checksLoading={checks.loading} checksError={checks.error} />
+          <PackageStep pkg={pkg} onPackage={(p) => { setPkg(p); setInstalled(false); }} checks={checks.result} checksLoading={checks.loading} checksError={checks.error} />
         </StepCard>
         <StepCard n={3} title={t("step3")} state={s3}>
           {tv && pkg
