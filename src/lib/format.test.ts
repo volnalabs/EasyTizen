@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysLeft, formatBytes, looksLikeIpv4, passwordProblem, validProfileName } from "./format";
+import { dayKey, daysLeft, formatBytes, looksLikeIpv4, passwordProblem, validProfileName } from "./format";
 
 describe("format", () => {
   it("formats bytes", () => {
@@ -24,5 +24,12 @@ describe("format", () => {
     expect(daysLeft(now / 1000 + 86_400 * 10, now)).toBe(10);
     expect(daysLeft(now / 1000 - 86_400, now)).toBe(-1);
     expect(daysLeft(null)).toBeNull();
+  });
+  it("groups history by local day", () => {
+    const now = new Date(2026, 10, 15, 9, 30);
+    const at = (d: Date) => d.getTime() / 1000;
+    expect(dayKey(at(new Date(2026, 10, 15, 0, 5)), now)).toBe("today");
+    expect(dayKey(at(new Date(2026, 10, 14, 23, 59)), now)).toBe("yesterday");
+    expect(dayKey(at(new Date(2026, 10, 9, 12)), now)).toBe("2026-11-09");
   });
 });

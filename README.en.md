@@ -18,14 +18,14 @@
 
 <br>
 
-<img src="docs/img/en/desktop-check.png" width="100%" alt="EasyTizen: TV connected, package checked, ready to install">
+<img src="docs/img/en/desktop-package.png" width="100%" alt="EasyTizen: TV connected, package checked, ready to install">
 
-<sub>The TV is connected and the file passed the mandatory and the additional checks — press “Install on TV”.</sub>
+<sub>EasyTizen 1.0: the TV is connected, the file passed the mandatory and the additional checks, a certificate is chosen — next, “Install on TV”.</sub>
 
 </div>
 
 > [!IMPORTANT]
-> **Status: preview.** Every feature is implemented and covered by automated tests (including tests against a protocol-level TV emulator), but installation on a **physical Samsung TV** and operation on a **real Android device** have not yet been confirmed by the author. What was verified and how is listed in the [test report](docs/TEST-REPORT.md); what still needs hands-on verification is in the [checklist](docs/ACCEPTANCE-CHECKLIST.md).
+> **What is verified.** Every feature is implemented and covered by automated tests (including tests against a protocol-level TV emulator), but installation on a **physical Samsung TV** and operation on a **real Android device** have not yet been confirmed by the author. What was verified and how is listed in the [test report](docs/TEST-REPORT.md); what still needs hands-on verification is in the [checklist](docs/ACCEPTANCE-CHECKLIST.md).
 
 EasyTizen works right after installation: **no Tizen SDK, no Tizen Studio, no Node.js or Python, no 15 GB download.** TV discovery, Samsung certificates, signing and `.wgt` installation are done by its own built-in engine — the same on Windows, macOS, Linux and Android.
 
@@ -201,24 +201,33 @@ Downloads and verifies a signed update and applies it on restart. On Android —
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="docs/img/en/desktop-welcome.png" alt="First launch"><br><sub><b>First launch.</b> Three steps, language choice, light theme</sub></td>
-<td width="50%" valign="top"><img src="docs/img/en/desktop-find.png" alt="Finding a TV"><br><sub><b>Finding the TV.</b> Network search, manual address and saved devices</sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/desktop-welcome.png" alt="First launch"><br><sub><b>First launch.</b> Two short screens, language choice, light theme</sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/desktop-find.png" alt="Finding a TV"><br><sub><b>Finding the TV.</b> Found on the network, saved, or by address</sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="docs/img/en/desktop-connected.png" alt="TV connected"><br><sub><b>TV connected.</b> Model and Device ID (DUID) with copy</sub></td>
-<td valign="top"><img src="docs/img/en/desktop-check.png" alt="Package check"><br><sub><b>WGT check.</b> Mandatory file safety plus the additional checks</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-connected.png" alt="TV connected"><br><sub><b>TV connected.</b> The step folds into one line, the next one lights up</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-check.png" alt="Package check"><br><sub><b>WGT check.</b> One-line result, details on demand</sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="docs/img/en/desktop-progress.png" alt="Installing"><br><sub><b>Installation.</b> Stages: signing, sending, installing, launching</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-progress.png" alt="Installing"><br><sub><b>Installation.</b> Current stage, percentage and every stage</sub></td>
 <td valign="top"><img src="docs/img/en/desktop-success.png" alt="Installed"><br><sub><b>Done.</b> The app is installed and running</sub></td>
 </tr>
 <tr>
 <td valign="top"><img src="docs/img/en/desktop-cert-new.png" alt="New certificate"><br><sub><b>Certificate.</b> Pick the TVs and a password — then sign in to Samsung in the browser</sub></td>
-<td valign="top"><img src="docs/img/en/desktop-tvs.png" alt="TVs"><br><sub><b>TVs.</b> Names, addresses, DUIDs and last connection</sub></td>
+<td valign="top"><img src="docs/img/en/desktop-tvs.png" alt="TVs"><br><sub><b>TVs.</b> List and details side by side: address, DUID, connection check</sub></td>
 </tr>
 <tr>
 <td valign="top"><img src="docs/img/en/desktop-updates.png" alt="Updates"><br><sub><b>Updates.</b> Automatic mode, last check, verified signature</sub></td>
 <td valign="top"><img src="docs/img/en/desktop-security.png" alt="Security check"><br><sub><b>Security.</b> Turning the additional checks off requires confirmation</sub></td>
+</tr>
+</table>
+
+### On a tablet
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/img/en/tablet-package.png" alt="Tablet, portrait"><br><sub><b>Portrait.</b> Navigation rail, full-width installation steps</sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/tablet-tvs.png" alt="Tablet, landscape"><br><sub><b>Landscape.</b> TV list and details side by side</sub></td>
 </tr>
 </table>
 
@@ -245,7 +254,7 @@ Downloads and verifies a signed update and applies it on restart. On Android —
 </tr>
 </table>
 
-<sub>About the screenshots: this is EasyTizen's real interface in English, captured automatically (<code>scripts/screenshots.mjs</code>) in demo mode — the TV, the certificate, the <i>My App</i> package and the newer release are emulated, and the “Demo” label is visible. They were taken in a browser at desktop-window and phone-screen sizes; the app has not yet been photographed on a real phone and TV. The packaged Linux app in a test environment: <a href="docs/img/linux-window.png">linux-window.png</a>. Russian screenshots are in the <a href="README.md#look">Russian version</a>.</sub>
+<sub>About the screenshots: this is EasyTizen's real interface in English, captured automatically (<code>scripts/screenshots.mjs</code>) in demo mode — the TV, the certificate, the <i>My App</i> package and the newer release are emulated, and the “Demo” label is visible. They were taken in a browser at desktop-window, phone and tablet sizes; the app has not yet been photographed on a real phone, tablet or TV. The packaged Linux app in a test environment (version 0.9.5, previous design): <a href="docs/img/linux-window.png">linux-window.png</a>. Russian screenshots are in the <a href="README.md#look">Russian version</a>.</sub>
 
 <p align="center"><img src="docs/readme/divider.svg" width="100%" height="24" alt=""></p>
 
@@ -419,11 +428,11 @@ Click **“Find TVs”**. EasyTizen detects the active network interfaces (Wi-Fi
 
 #### <img src="docs/readme/step-2.svg" width="28" height="28" align="top" alt="Step 2"> Connect — or enter the IP
 
-Click **“Connect”** next to a found TV. Not in the list? Type its address (for example `192.168.1.100`) in the field on the right and click **“Connect”**. EasyTizen checks the address, reachability, Developer Mode and Host PC IP, reads the model, Tizen version and device ID (DUID) and saves the TV — no need to search next time.
+Click **“Connect”** next to a found TV. Not in the list? Type its address (for example `192.168.1.100`) in the **“TV address”** field and click **“Connect”**. EasyTizen checks the address, reachability, Developer Mode and Host PC IP, reads the model, Tizen version and device ID (DUID) and saves the TV — no need to search next time.
 
 #### <img src="docs/readme/step-3.svg" width="28" height="28" align="top" alt="Step 3"> Choose the `.wgt` file
 
-Drop the file onto the window or click **“Choose file”**. EasyTizen inspects the archive and shows the name, version, app ID and signature state.
+Drop the file onto the window or click **“Choose a .wgt file”**. EasyTizen inspects the archive and shows the name, version and signature; the check result is one line, the details are under “What was checked”.
 
 #### <img src="docs/readme/step-4.svg" width="28" height="28" align="top" alt="Step 4"> Create a certificate
 
@@ -434,13 +443,13 @@ Done once. EasyTizen suggests the right type from the TV's Tizen version:
 | **before Tizen 7** (roughly up to 2022 models) | **Tizen certificate** | nothing: no account, not bound to a TV |
 | **Tizen 7 and newer** | **Samsung certificate** | a free Samsung Account; issued for the Device ID (DUID) of specific TVs |
 
-1. In the “Install” step click **“Create certificate”** and check the selected type.
+1. In the “Signature” step click **“Create certificate”** and check the selected type.
 2. Choose a name and a password (at least 8 characters with an uppercase letter, a lowercase letter and a digit). This is the certificate file's password, not your Samsung Account password. For a Samsung certificate, tick the TVs it is for.
 3. **Tizen certificate:** click **“Create certificate”**. EasyTizen downloads Samsung's official `certificate-generator` package from `download.tizen.org` once (about 4 MB), checks the three files it needs against pinned SHA-256 hashes and creates your own author key, signed by the Tizen SDK's “Tizen Developers CA”. No access to download.tizen.org? Download that zip on another device and choose it in the dialog (“No access to download.tizen.org?”).
    **Samsung certificate:** click **“Sign in with Samsung and create”** — Samsung's sign-in page opens in the browser. Sign in or create a free account, then return to EasyTizen.
 
 > [!NOTE]
-> Already have a certificate pair from Tizen Studio? Click **“Import existing”** and choose `author.p12`, `distributor.p12` and their passwords. The distributor certificate must have been issued for your TV's DUID.
+> Already have a certificate pair from Tizen Studio? Click **“Import”** and choose `author.p12`, `distributor.p12` and their passwords. The distributor certificate must have been issued for your TV's DUID.
 
 #### <img src="docs/readme/step-5.svg" width="28" height="28" align="top" alt="Step 5"> Install
 

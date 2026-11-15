@@ -26,6 +26,9 @@ Preparation: TV and test device on the same router; note the TV's IP (Settings â
 - [ ] History shows app, file, TV, IP, date, time, result and the TV's error text.
 - [ ] Minimise the app during an installation for 30 s and return: the installation finished or failed with a message, never stuck.
 - [ ] Rotation, dark/light theme, Russian/English, back gesture, 320 px width, font size 130 %.
+- [ ] 1.0 layout on the phone: the dock does not cover content or the gesture bar, hides while the keyboard is open (TV address, passwords) and returns; bottom sheets clear the navigation bar; the result of an installation scrolls into view.
+- [ ] Android tablet: navigation rail in portrait; sidebar and TV/certificate list with details side by side in landscape.
+- [ ] Update from 0.9.x to 1.0.0 over the installed app: TVs, certificates, history and settings are kept.
 
 ## B. Windows 10 and 11 (x64), standard user account
 

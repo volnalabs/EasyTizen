@@ -1,4 +1,26 @@
-# Test report — EasyTizen, single built-in engine (after 0.9.1)
+# Test report — EasyTizen
+
+## 1.0.0 — interface redesign
+
+Date: 2026-11-15. Linux x86_64 container (no KVM, no display), Rust 1.97, Node.js 22.23, Chromium + Playwright. The 1.0.0 changes are in the interface (`src/`), documentation and version numbers; the Rust engine is unchanged apart from one added assertion (`is_newer("v1.0.0", "0.9.8")`).
+
+| Check | Command | Result |
+|---|---|---|
+| Types | `npm run typecheck` | no errors |
+| Interface, localisation, release scripts, "no SDK" guard | `npm test` | 58 tests passed (new: installation step states, history day grouping) |
+| Production build | `npm run build` | built |
+| Rust format / lints | `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --features easytizen-core/mock-tv -- -D warnings` | clean |
+| Rust tests | `cargo test --workspace --features easytizen-core/mock-tv` | 102 core + 26 app tests passed, 1 ignored (as before) |
+| Versions | `node scripts/release.mjs check-version 1.0.0` | consistent: `package.json`, `package-lock.json`, `Cargo.toml`, `Cargo.lock`, `tauri.conf.json` |
+| Responsive audit | `node scripts/ui-audit.mjs` against `vite preview` | 17 sizes (320–480 px phones, 600–1194 px tablets in portrait and landscape, 1024×640–1920×1080 desktop) × RU/EN × light/dark: every section and the whole installation (find → connect → file → install → success) — no sideways scrolling, nothing off screen, no clipped labels, no page errors |
+| States | Playwright, demo backend | first run, no TVs, search, slow-search hint, unreachable address, wrong Host PC IP, invalid IP, no certificate (Tizen certificate offered for Tizen 6), failed package check, checks off with the confirmation dialog, installation progress, success, update available/downloaded |
+| Screenshots | `node scripts/screenshots.mjs` | desktop, phone and tablet scenes re-captured in Russian and English |
+
+Not verified for 1.0.0: the redesigned interface on a **physical Android phone or tablet** (on-screen keyboard, system file picker, real safe areas and gesture bar were emulated in Chromium only), in the packaged desktop apps (WebView2, WKWebView, WebKitGTK) and against a **physical TV**. The update from 0.9.x to 1.0.0 was reasoned from the unchanged update code and data formats and the version comparison test, not performed with signed release builds.
+
+---
+
+## 0.9.x — single built-in engine (after 0.9.1)
 
 Date: 2026-11-15. Environment of the local runs: Linux x86_64 (Ubuntu 24.04 container, no KVM), Rust 1.97, Node.js 22.23, OpenSSL 3, xmlsec1, MinGW-w64 + NSIS (Windows cross-build), Android SDK platform 36 / build-tools 35 / NDK 27.2, JDK 21.
 

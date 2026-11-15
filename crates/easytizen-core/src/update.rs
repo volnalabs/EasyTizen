@@ -350,6 +350,8 @@ mod tests {
         assert_eq!(parse_version("1.2.3.4"), None);
         assert!(is_newer("v1.0.1", "1.0.0"));
         assert!(is_newer("v1.10.0", "1.9.9"));
+        // 0.9.x installations are offered 1.0.0.
+        assert!(is_newer("v1.0.0", "0.9.8"));
         assert!(!is_newer("v1.0.0", "1.0.0"));
         assert!(!is_newer("v0.9.0", "1.0.0"));
         assert!(!is_newer("garbage", "1.0.0"));

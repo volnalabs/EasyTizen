@@ -12,17 +12,17 @@ export function DiagnosisPanel({ diagnosis, technical, hostIp, check }: { diagno
   const params = { hostIp: hostIp ?? check?.host_ip ?? "—", tvHostIp: check?.samsung?.developer_ip ?? "—", ip: check?.ip ?? "—" };
   const steps = DIAGNOSIS_STEPS[diagnosis];
   return (
-    <div role="alert" className="fade-up rounded-[12px] border border-[color-mix(in_srgb,var(--warn)_28%,transparent)] bg-warn-soft p-4">
+    <div role="alert" className="fade-up rounded-[14px] bg-warn-soft px-4 py-4">
       <div className="flex gap-3">
         <AlertTriangle size={18} className="mt-px shrink-0 text-warn" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{t(`dx_${diagnosis}` as Key)}</p>
           <p className="mt-1 text-small text-muted">{t(`dx_${diagnosis}_body` as Key, params)}</p>
           {steps && (
-            <ol className="m-0 mt-2.5 list-none space-y-1.5 p-0 text-small">
+            <ol className="m-0 mt-3 list-none space-y-2 p-0 text-small">
               {steps.map((k, i) => (
-                <li key={k} className="flex gap-2">
-                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface text-caption font-semibold text-muted" aria-hidden>{i + 1}</span>
+                <li key={k} className="flex gap-2.5">
+                  <span className="data grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface text-micro font-semibold text-fg shadow-raised" aria-hidden>{i + 1}</span>
                   <span className="min-w-0 pt-px">{t(k, params)}</span>
                 </li>
               ))}
