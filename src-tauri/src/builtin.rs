@@ -787,7 +787,19 @@ pub async fn install(
                 .map_err(|e| sdb_error(&e))
             });
         cleanup();
-        let outcome = outcome?;
+        // Record where a connection problem happened (connecting, uploading, installing …):
+        // the log and the history then tell a refused upload from a refused installation.
+        let outcome = outcome.map_err(|mut e| {
+            let (stage, percent) = last.take();
+            if e.detail.is_none() && !stage.is_empty() && e.code != "cancelled" {
+                e.detail = Some(if percent <= 100 && stage == "uploading" {
+                    format!("stage: {stage} ({percent} %)")
+                } else {
+                    format!("stage: {stage}")
+                });
+            }
+            e
+        })?;
         match outcome.verdict {
             InstallVerdict::Installed => {
                 Ok((outcome.in_app_list, outcome.launched, verified_password))

@@ -21,10 +21,9 @@ pub const A_AUTH: u32 = 0x4854_5541;
 
 /// SDB protocol version announced by the host.
 pub const SDB_VERSION: u32 = 0x0200_0000;
-/// Payload size we announce. Conservative on purpose: every sdbd generation accepts it.
+/// Payload size we announce — and therefore the largest frame we ever send, because sdbd
+/// limits a connection to the smaller of both announcements. Every sdbd generation accepts it.
 pub const ANNOUNCED_MAX_PAYLOAD: u32 = 4096;
-/// Never send more than this in one WRTE even when the device announces a larger buffer.
-pub const SEND_PAYLOAD_CAP: usize = 64 * 1024;
 /// Refuse absurd incoming frames (memory-exhaustion guard).
 pub const RECV_PAYLOAD_LIMIT: usize = 1024 * 1024;
 
