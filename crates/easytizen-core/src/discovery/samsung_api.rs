@@ -355,7 +355,8 @@ mod tests {
             fetch(
                 Ipv4Addr::LOCALHOST,
                 closed_port,
-                Duration::from_secs(2),
+                // Windows reports a refused connection only after ~2 s of SYN retries.
+                Duration::from_secs(5),
                 &CancelToken::new()
             ),
             Err(ApiProbeError::Unavailable)

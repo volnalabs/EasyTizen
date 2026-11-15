@@ -745,10 +745,14 @@ pub async fn install(
                 sign_wgt(&source, &signed, &author, &distributor, &cancel, &mut |f| {
                     emit("signing", f)
                 })
-                .map_err(|e| match e {
-                    SignError::Cancelled => ApiError::new("cancelled"),
-                    SignError::Package(p) => crate::api::package_error(&p),
-                    other => ApiError::with("sign_failed", other.to_string()),
+                .map_err(|e| {
+                    // Never leave a half-written working copy behind.
+                    let _ = std::fs::remove_file(&signed);
+                    match e {
+                        SignError::Cancelled => ApiError::new("cancelled"),
+                        SignError::Package(p) => crate::api::package_error(&p),
+                        other => ApiError::with("sign_failed", other.to_string()),
+                    }
                 })?;
                 signed
             }
