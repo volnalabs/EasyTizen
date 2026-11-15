@@ -1,21 +1,47 @@
 export type Diagnosis =
-  | "tools_missing" | "node_problem" | "not_enough_disk_space" | "tv_unreachable" | "port_closed"
-  | "network_unreachable" | "connection_rejected" | "operation_timed_out" | "cancelled" | "not_a_tv"
-  | "cli_failure" | "unknown";
+  | "no_network" | "tv_unreachable" | "other_network" | "dev_mode_off" | "host_ip_mismatch" | "port_closed"
+  | "connection_dropped" | "network_unreachable" | "connection_rejected" | "operation_timed_out" | "cancelled"
+  | "not_a_tv" | "unknown";
 
 export interface ApiError { code: string; detail?: string | null }
 export interface Outcome<T> { ok: boolean; data: T | null; diagnosis: Diagnosis | null; technical: string | null }
 
-export type Engine = "sdk" | "builtin";
 export type Platform = "android" | "windows" | "macos" | "linux";
 export interface AppInfo {
-  version: string; platform: Platform | string; arch: string; mobile: boolean; engines: Engine[]; host_ip: string | null;
+  version: string; platform: Platform | string; arch: string; mobile: boolean;
+  /** This device's LAN address — the value for "Host PC IP" on the TV. */
+  host_ip: string | null;
+  log_dir: string | null;
 }
 
-export interface FoundTv { ip: string; port: number; name: string | null }
-export interface ScanData { devices: FoundTv[]; subnets: string[] }
-export interface TvInfo { ip: string; port: number; duid: string | null; name: string; model: string | null; host_ip: string | null }
-export type ConnectOutcome = Outcome<TvInfo> & { host_ip: string | null; probe: string | null };
+export type InterfaceKind = "wifi" | "ethernet" | "hotspot" | "mobile" | "vpn" | "virtual" | "other";
+export interface LocalInterface { name: string; ip: string; prefix_len: number; kind: InterfaceKind; primary: boolean; private: boolean }
+export interface NetworkInfo { host_ip: string | null; interfaces: LocalInterface[] }
+
+/** What a found TV is ready for. */
+export type TvStatus = "ready" | "dev_mode_off" | "host_ip_mismatch" | "sdb_rejected" | "sdb_unavailable";
+export type FoundSource = "network_scan" | "ssdp" | "saved";
+export interface FoundTv {
+  ip: string; port: number; name: string | null; model: string | null; tizen_version: string | null;
+  status: TvStatus; developer_mode: boolean | null; developer_ip: string | null; host_ip: string | null; sources: FoundSource[];
+}
+export interface ScanData { devices: FoundTv[]; networks: string[]; interfaces: LocalInterface[]; swept_hosts: number }
+
+export type Probe = "open" | "refused" | "timed_out" | "network_unreachable" | "other";
+export interface SamsungTvInfo {
+  name: string | null; model_name: string | null; model_code: string | null; os: string | null; firmware: string | null;
+  developer_mode: boolean | null; developer_ip: string | null; network_type: string | null;
+}
+export interface SdbInfo { model: string | null; tizen_version: string | null; secure_protocol: boolean; capability_known: boolean }
+export interface TvIdentity { duid: string | null; model: string | null; platform_version: string | null; secure_protocol: boolean }
+/** Every condition checked for one TV address. */
+export interface TvCheck {
+  ip: string; port: number; host_ip: string | null; interface: string | null; same_network: boolean | null; reachable: boolean;
+  samsung: SamsungTvInfo | null; sdb_port: Probe; sdb_ok: boolean; sdb: SdbInfo | null; identity: TvIdentity | null;
+  host_ip_matches: boolean | null; diagnosis: Diagnosis | null; technical: string | null;
+}
+export interface TvInfo { ip: string; port: number; duid: string | null; name: string; model: string | null; tizen_version: string | null; host_ip: string | null }
+export type ConnectOutcome = Outcome<TvInfo> & { host_ip: string | null; check: TvCheck };
 
 export type SignatureState = "unsigned" | "signed_structure" | "partial" | "malformed";
 export interface Finding { code: string; detail: string | null }
@@ -28,34 +54,31 @@ export interface PackageReport {
 }
 export interface OpenedPackage { path: string; report: PackageReport }
 
-export interface SavedDevice { ip: string; port: number; name: string; duid: string | null; model: string | null; last_connected: number | null }
+export interface SavedDevice { ip: string; port: number; name: string; duid: string | null; model: string | null; tizen_version: string | null; last_connected: number | null }
+/** "sdk": made by an older version through the Tizen SDK — must be transferred once before use. */
+export type CertStore = "sdk" | "builtin";
 export interface CertificateProfile {
-  name: string; identity: string; duids: string[]; engine: Engine;
+  name: string; identity: string; duids: string[]; engine: CertStore;
   created_at: number | null; expires_at: number | null; imported: boolean;
 }
 export interface Settings {
-  theme: "system" | "light" | "dark"; language: "auto" | "ru" | "en"; engine: Engine;
-  sdk_path: string | null; default_port: number; timeout_ms: number; devices: SavedDevice[];
+  theme: "system" | "light" | "dark"; language: "auto" | "ru" | "en";
+  default_port: number; timeout_ms: number; devices: SavedDevice[];
   certificate_profiles: CertificateProfile[]; onboarding_done: boolean;
   /** Automatic updates: periodic check plus background download and verification. */
   check_updates: boolean;
-  pending_sdk_install: string | null;
   /** Additional (optional) package checks before installation; mandatory file safety always runs. */
   extra_package_checks: boolean;
   /** Unix seconds of the last update check, successful or not. */
   last_update_check: number | null;
 }
-export interface InstallResult { app_name: string | null; app_id: string | null; version: string | null; tv_ip: string; launched: boolean | null }
-export interface ToolchainStatus {
-  node: "bundled" | "system" | "missing"; cli_ready: boolean; sdk_path: string | null; sdk_ready: boolean;
-  tv_extension_ready: boolean; sdk_required_gb: number; pending_install: string | null;
+export interface InstallResult {
+  app_name: string | null; app_id: string | null; version: string | null; tv_ip: string;
+  /** The TV's app list shows the app after installation; null when it could not be read. */
+  in_app_list: boolean | null;
+  launched: boolean | null;
 }
-export interface SdkPreflight {
-  path: string; free_bytes: number | null; required_bytes: number; enough_space: boolean; sdk_present: boolean;
-  tv_extension_present: boolean; shell_ok: boolean; path_error: string | null;
-}
-export interface SdkProgress { op_id: string | null; phase: "sdk" | "tv_extension"; step: string | null; current: number | null; total: number | null; line: string }
-export type InstallStage = "signing" | "connecting" | "uploading" | "installing" | "launching";
+export type InstallStage = "signing" | "connecting" | "uploading" | "installing" | "verifying" | "launching";
 export interface InstallProgress { op_id: string | null; stage: InstallStage; fraction: number }
 export type CertStage = "signin" | "author" | "distributor" | "saving";
 export interface CertProgress { op_id: string | null; stage: CertStage; url: string | null }

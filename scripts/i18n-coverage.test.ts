@@ -27,6 +27,35 @@ describe("localisation covers everything the backend can report", () => {
     for (const m of updates.matchAll(/ApiError::new\("(update_\w+)"\)/g)) expect(has(`err_${m[1]}`), m[1]).toBe(true);
   });
 
+  it("every diagnosis has a title and an explanation", () => {
+    const source = rust("crates/easytizen-core/src/diagnostics.rs");
+    const body = source.slice(source.indexOf("pub enum Diagnosis"), source.indexOf("pub fn from_probe"));
+    const variants = [...body.matchAll(/^\s{4}([A-Z]\w+),/gm)].map((m) => m[1].replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace("not_a_tv", "not_a_tv"));
+    expect(variants.length).toBeGreaterThanOrEqual(12);
+    for (const v of variants) {
+      const key = v === "not_atv" ? "not_a_tv" : v;
+      expect(has(`dx_${key}`), key).toBe(true);
+      expect(has(`dx_${key}_body`), key).toBe(true);
+    }
+  });
+
+  it("every TV status found by the search", () => {
+    const source = rust("crates/easytizen-core/src/discovery/mod.rs");
+    const body = source.slice(source.indexOf("pub enum TvStatus"), source.indexOf("pub enum Source"));
+    const variants = [...body.matchAll(/^\s{4}([A-Z]\w+),/gm)].map((m) => m[1].replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase());
+    expect(variants).toEqual(["ready", "dev_mode_off", "host_ip_mismatch", "sdb_rejected", "sdb_unavailable"]);
+    for (const v of variants) expect(has(`tvStatus_${v}`), v).toBe(true);
+  });
+
+  it("every error code the TV, certificate and install commands return", () => {
+    const shell = rust("src-tauri/src/api.rs") + rust("src-tauri/src/builtin.rs");
+    const codes = new Set([...shell.matchAll(/ApiError::(?:new|with)\(\s*"(\w+)"/g)].map((m) => m[1]));
+    // Installer verdicts mapped in builtin.rs.
+    for (const m of shell.matchAll(/InstallFailure::\w+ => "(\w+)"/g)) codes.add(m[1]);
+    expect(codes.size).toBeGreaterThan(40);
+    for (const code of codes) expect(has(`err_${code}`), code).toBe(true);
+  });
+
   it("every error code of the package gate", () => {
     const api = rust("src-tauri/src/api.rs");
     for (const code of ["pkg_checks_failed", "checks_skip_not_confirmed"]) {

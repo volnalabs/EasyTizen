@@ -27,6 +27,8 @@ pub enum SdbError {
     Refused,
     #[error("no route to the TV")]
     Unreachable,
+    #[error("the TV closed the connection")]
+    Closed,
     #[error("network error: {0}")]
     Io(String),
     #[error("unexpected answer from the device: {0}")]
@@ -46,6 +48,10 @@ impl From<std::io::Error> for SdbError {
         match e.kind() {
             ErrorKind::TimedOut | ErrorKind::WouldBlock => SdbError::Timeout,
             ErrorKind::ConnectionRefused => SdbError::Refused,
+            ErrorKind::ConnectionReset
+            | ErrorKind::ConnectionAborted
+            | ErrorKind::UnexpectedEof
+            | ErrorKind::BrokenPipe => SdbError::Closed,
             _ => {
                 let kind = format!("{:?}", e.kind());
                 if kind.contains("Unreachable") {
@@ -103,15 +109,43 @@ impl Capability {
         )
     }
 
-    /// Directory the TV wants packages uploaded to (`<sdk_toolpath>/tmp`).
-    pub fn package_tmp_dir(&self) -> Option<String> {
+    /// Whether the TV interface (`0 getduid`, `0 vd_appinstall` …) is used. Only an explicit
+    /// `secure_protocol:disabled` selects the generic Tizen commands; a device that does not
+    /// answer `capability:` at all is treated as a TV, because that is what this app talks to.
+    pub fn uses_tv_commands(&self) -> bool {
+        self.get("secure_protocol").is_none() || self.secure_protocol()
+    }
+
+    /// Tizen version (`platform_version`), e.g. `6.5`, when the device reports a plausible one.
+    pub fn platform_version(&self) -> Option<&str> {
+        self.get("platform_version").filter(|v| {
+            !v.is_empty() && v.len() <= 16 && v.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+        })
+    }
+
+    /// Model or device name as the TV reports it.
+    pub fn device_name(&self) -> Option<&str> {
+        ["device_name", "model_name"]
+            .iter()
+            .filter_map(|k| self.get(k))
+            .find(|v| !v.is_empty() && v.len() <= 120)
+    }
+
+    /// The SDK tool folder itself (`sdk_toolpath`), validated.
+    pub fn sdk_tool_dir(&self) -> Option<String> {
         let base = self.get("sdk_toolpath")?.trim_end_matches('/');
         let safe = base.starts_with('/')
+            && base.len() > 1
             && base
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || "/_-.".contains(c))
             && !base.split('/').any(|part| part == "..");
-        safe.then(|| format!("{base}/tmp"))
+        safe.then(|| base.to_string())
+    }
+
+    /// Directory the TV wants packages uploaded to (`<sdk_toolpath>/tmp`).
+    pub fn package_tmp_dir(&self) -> Option<String> {
+        self.sdk_tool_dir().map(|base| format!("{base}/tmp"))
     }
 }
 
@@ -188,7 +222,7 @@ impl SdbClient {
                 return Err(SdbError::Cancelled);
             }
             match self.stream.read(&mut buf[filled..]) {
-                Ok(0) => return Err(SdbError::Io("connection closed by the TV".into())),
+                Ok(0) => return Err(SdbError::Closed),
                 Ok(n) => filled += n,
                 Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
                     if Instant::now() >= deadline {
@@ -244,17 +278,20 @@ impl SdbClient {
     }
 
     /// Reads a stream until the device closes it; returns everything it wrote (capped).
+    /// `on_data` sees every chunk as it arrives (live installer output).
     fn read_to_close(
         &mut self,
         s: &OpenStream,
         deadline: Instant,
         cap: usize,
+        on_data: &mut dyn FnMut(&[u8]),
     ) -> Result<Vec<u8>, SdbError> {
         let mut out = Vec::new();
         loop {
             let msg = self.recv(deadline)?;
             match msg.command {
                 A_WRTE if msg.arg1 == s.local => {
+                    on_data(&msg.data);
                     if out.len() < cap {
                         let take = msg.data.len().min(cap - out.len());
                         out.extend_from_slice(&msg.data[..take]);
@@ -276,19 +313,43 @@ impl SdbClient {
     /// The command is interpreted by the *device*. Callers must build it from validated
     /// values only (see [`super::is_safe_shell_word`]).
     pub fn shell(&mut self, command: &str, timeout: Duration) -> Result<String, SdbError> {
+        self.shell_streaming(command, timeout, &mut |_| {})
+    }
+
+    /// Like [`Self::shell`], and calls `on_line` for every complete output line as the TV
+    /// writes it (used to follow the installer's percentages).
+    pub fn shell_streaming(
+        &mut self,
+        command: &str,
+        timeout: Duration,
+        on_line: &mut dyn FnMut(&str),
+    ) -> Result<String, SdbError> {
         if command.contains(['\0', '\n', '\r']) {
             return Err(SdbError::Protocol("unsafe shell command".into()));
         }
         let deadline = Instant::now() + timeout;
         let s = self.open(&format!("shell:{command}"), deadline)?;
-        let out = self.read_to_close(&s, deadline, 512 * 1024)?;
+        let mut pending: Vec<u8> = Vec::new();
+        let out = self.read_to_close(&s, deadline, 512 * 1024, &mut |chunk| {
+            pending.extend_from_slice(chunk);
+            while let Some(end) = pending.iter().position(|b| *b == b'\n') {
+                let line: Vec<u8> = pending.drain(..=end).collect();
+                on_line(String::from_utf8_lossy(&line).trim_end_matches(['\r', '\n']));
+            }
+            if pending.len() > 64 * 1024 {
+                pending.clear();
+            }
+        })?;
+        if !pending.is_empty() {
+            on_line(String::from_utf8_lossy(&pending).trim_end_matches('\r'));
+        }
         Ok(String::from_utf8_lossy(&out).replace('\r', ""))
     }
 
     pub fn capability(&mut self, timeout: Duration) -> Result<Capability, SdbError> {
         let deadline = Instant::now() + timeout;
         let s = self.open("capability:", deadline)?;
-        let out = self.read_to_close(&s, deadline, 64 * 1024)?;
+        let out = self.read_to_close(&s, deadline, 64 * 1024, &mut |_| {})?;
         Ok(Capability::parse(&out))
     }
 

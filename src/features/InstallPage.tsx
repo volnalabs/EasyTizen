@@ -7,7 +7,6 @@ import { api, toApiError } from "../services/api";
 import type { ExtraChecks, OpenedPackage } from "../types";
 import { InstallStep } from "./InstallStep";
 import { PackageStep } from "./PackageStep";
-import { ToolsPanel } from "./Setup";
 import { TvFinder } from "./TvFinder";
 
 type StepState = "done" | "current" | "locked";
@@ -46,7 +45,7 @@ function StepCard({ n, title, state, status, children }: { n: number; title: str
 
 export function InstallPage() {
   const { t } = useI18n();
-  const { tv, setTv, toolsMissing, settings } = useApp();
+  const { tv, setTv, settings } = useApp();
   const [pkg, setPkg] = useState<OpenedPackage | null>(null);
   const [installed, setInstalled] = useState(false);
   const [resign, setResign] = useState(true);
@@ -80,7 +79,7 @@ export function InstallPage() {
       ]} />
       <div className="space-y-4">
         <StepCard n={1} title={t("step1")} state={s1} status={tv ? <Pill tone="ok"><CheckCircle2 size={12} aria-hidden />{t("tvConnected")}</Pill> : undefined}>
-          {toolsMissing ? <ToolsPanel /> : tv ? (
+          {tv ? (
             <div className="fade-up">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
                 <IconTile tone="ok"><Tv2 size={20} aria-hidden /></IconTile>
@@ -92,6 +91,8 @@ export function InstallPage() {
               </div>
               <DataList className="mt-3 border-t border-line">
                 {tv.model && <Row label={t("tvModel")}>{tv.model}</Row>}
+                {tv.tizen_version && <Row label={t("tvTizen")}>Tizen {tv.tizen_version}</Row>}
+                {tv.host_ip && <Row label={t("tvHostIp")} data>{tv.host_ip}</Row>}
                 {tv.duid && <Row label={t("tvDuid")} data action={<CopyButton value={tv.duid} label={t("copyDuid")} />}>{tv.duid}</Row>}
               </DataList>
               {!tv.duid && <div className="mt-3"><Notice tone="warn">{t("tvNoDuid")}</Notice></div>}

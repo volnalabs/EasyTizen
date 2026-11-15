@@ -7,7 +7,7 @@ import type { Key } from "../i18n";
 /** Step-by-step Developer Mode instructions, with this device's address filled in. */
 export function DevModeGuide() {
   const { t } = useI18n();
-  const { info } = useApp();
+  const { info, hostIp } = useApp();
   const toast = useToast();
   const steps: Key[] = ["devStep1", "devStep2", "devStep3", "devStep4", "devStep5"];
   return (
@@ -19,11 +19,14 @@ export function DevModeGuide() {
             <div className="min-w-0 flex-1 pt-px">
               <p>{t(key)}</p>
               {key === "devStep4" && (
-                info.host_ip ? (
-                  <button type="button" onClick={() => copyText(info.host_ip!).then((ok) => ok && toast("ok", t("copied")))} aria-label={`${t("copy")}: ${info.host_ip}`}
-                    className="selectable data mt-2 inline-flex min-h-11 items-center gap-3 rounded-[10px] border border-line-strong bg-surface-2 px-3.5 py-2 text-title font-semibold tracking-wide transition-colors hover:bg-surface-3">
-                    {info.host_ip}<Copy size={15} className="text-muted" aria-hidden />
-                  </button>
+                hostIp ? (
+                  <>
+                    <button type="button" onClick={() => copyText(hostIp).then((ok) => ok && toast("ok", t("copied")))} aria-label={`${t("copy")}: ${hostIp}`}
+                      className="selectable data mt-2 inline-flex min-h-11 items-center gap-3 rounded-[10px] border border-line-strong bg-surface-2 px-3.5 py-2 text-title font-semibold tracking-wide transition-colors hover:bg-surface-3">
+                      {hostIp}<Copy size={15} className="text-muted" aria-hidden />
+                    </button>
+                    <p className="mt-1.5 text-small text-muted">{info.mobile ? t("devHostPhone") : t("devHostPc")}</p>
+                  </>
                 ) : <p className="mt-1 text-warn">{t("devNoIp")}</p>
               )}
             </div>

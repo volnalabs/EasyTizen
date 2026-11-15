@@ -13,12 +13,29 @@ use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+/// Faults the emulator can inject, to test how the app copes with real-world failures.
+#[derive(Debug, Default, Clone)]
+pub struct MockFaults {
+    /// Close the TCP connection right after accepting it (what a TV does when the Host PC IP
+    /// in Developer Mode belongs to another device).
+    pub close_on_connect: bool,
+    /// Drop the connection once this many package bytes have arrived (Wi-Fi drop mid-upload).
+    pub drop_after_upload_bytes: Option<usize>,
+    /// Refuse uploads into `<sdk_toolpath>/tmp` (some firmwares): the app must fall back.
+    pub refuse_tmp_dir: bool,
+    /// Refuse the `capability:` service.
+    pub refuse_capability: bool,
+}
+
 #[derive(Debug, Default)]
 pub struct MockState {
     pub files: HashMap<String, Vec<u8>>,
     pub installed: Vec<String>,
     pub launched: Vec<String>,
     pub shell_commands: Vec<String>,
+    pub faults: MockFaults,
+    /// Bytes of package data received in total (all uploads).
+    pub received_bytes: usize,
 }
 
 #[derive(Clone)]
@@ -106,7 +123,26 @@ impl MockTv {
         Ok(())
     }
 
+    /// Starts an emulator with injected faults.
+    pub fn start_with(
+        bind_ip: Ipv4Addr,
+        port: u16,
+        duid: &str,
+        faults: MockFaults,
+    ) -> std::io::Result<Self> {
+        let tv = Self::start(bind_ip, port, duid)?;
+        tv.state.lock().unwrap().faults = faults;
+        Ok(tv)
+    }
+
+    fn faults(&self) -> MockFaults {
+        self.state.lock().unwrap().faults.clone()
+    }
+
     fn serve(&self, mut stream: TcpStream) -> std::io::Result<()> {
+        if self.faults().close_on_connect {
+            return Ok(());
+        }
         let hello = Self::read_message(&mut stream)?;
         if hello.command != A_CNXN || !hello.data.starts_with(b"host::") {
             return Ok(());
@@ -132,7 +168,9 @@ impl MockTv {
             let service = String::from_utf8_lossy(&msg.data)
                 .trim_end_matches('\0')
                 .to_string();
-            if service == "capability:" {
+            if service == "capability:" && self.faults().refuse_capability {
+                stream.write_all(&Message::new(A_CLSE, 0, host, vec![]).encode())?;
+            } else if service == "capability:" {
                 stream.write_all(&Message::new(A_OKAY, dev, host, vec![]).encode())?;
                 let text = capability_text();
                 let mut payload = (text.len() as u16).to_le_bytes().to_vec();
@@ -142,8 +180,9 @@ impl MockTv {
             } else if let Some(command) = service.strip_prefix("shell:") {
                 stream.write_all(&Message::new(A_OKAY, dev, host, vec![]).encode())?;
                 let out = self.run_shell(command);
-                if !out.is_empty() {
-                    Self::write_data(&mut stream, dev, host, out.as_bytes())?;
+                // Line by line, as the TV's installer prints its progress.
+                for line in out.split_inclusive('\n') {
+                    Self::write_data(&mut stream, dev, host, line.as_bytes())?;
                 }
                 stream.write_all(&Message::new(A_CLSE, dev, host, vec![]).encode())?;
             } else if service == "sync:" {
@@ -184,12 +223,28 @@ impl MockTv {
                             file.clear();
                         } else {
                             file.extend_from_slice(&body);
+                            let mut state = self.state.lock().unwrap();
+                            state.received_bytes += body.len();
+                            if let Some(limit) = state.faults.drop_after_upload_bytes {
+                                if state.received_bytes >= limit {
+                                    // Simulates the network going away mid-transfer.
+                                    let _ = stream.shutdown(std::net::Shutdown::Both);
+                                    return Ok(());
+                                }
+                            }
                         }
                     }
                     b"DONE" => {
                         buffer.drain(..8);
+                        let refuse_tmp = self.faults().refuse_tmp_dir;
                         let reply = match path.take() {
-                            Some(p) if p.starts_with("/home/owner/share/tmp/sdk_tools/tmp/") => {
+                            Some(p)
+                                if (p.starts_with("/home/owner/share/tmp/sdk_tools/tmp/")
+                                    && !refuse_tmp)
+                                    || (p.starts_with("/home/owner/share/tmp/sdk_tools/")
+                                        && !p["/home/owner/share/tmp/sdk_tools/".len()..]
+                                            .contains('/')) =>
+                            {
                                 self.state
                                     .lock()
                                     .unwrap()
@@ -243,11 +298,20 @@ impl MockTv {
                 };
                 match check_package(&bytes, &self.duid) {
                     Ok(()) => {
-                        state.installed.push(app_id.to_string());
-                        format!("install {app_id}\npackage_path {path}\napp in-house install\napp_id[{app_id}] install start\napp_id[{app_id}] install completed\nspend time for wascmd is [1200]ms\ncmd_ret:0\n")
+                        if !state.installed.iter().any(|a| a == app_id) {
+                            state.installed.push(app_id.to_string());
+                        }
+                        format!("install {app_id}\npackage_path {path}\napp in-house install\napp_id[{app_id}] install start\napp_id[{app_id}] installing[18]\napp_id[{app_id}] installing[61]\napp_id[{app_id}] installing[100]\napp_id[{app_id}] install completed\nspend time for wascmd is [1200]ms\ncmd_ret:0\n")
                     }
                     Err(reason) => format!("install {app_id}\npackage_path {path}\napp_id[{app_id}] install failed[118, -12], reason: Check certificate error : :{reason}\ncmd_ret:1\n"),
                 }
+            }
+            ["0", "vd_applist"] => {
+                let mut out = String::from("Application List for user 5001\nUser's Application \n Name    AppID\n=================================================\n");
+                for app in &state.installed {
+                    out.push_str(&format!("'{app}'   '{app}'\n"));
+                }
+                out
             }
             ["0", "vd_appuninstall", app_id] => {
                 state.installed.retain(|a| a != app_id);
@@ -392,9 +456,10 @@ mod tests {
         let outcome = install_wgt(
             Ipv4Addr::LOCALHOST,
             tv.port,
-            &mut wgt.as_slice(),
+            &mut std::io::Cursor::new(&wgt),
             wgt.len() as u64,
             "abcde12345.Demo",
+            None,
             true,
             Duration::from_secs(5),
             &CancelToken::new(),
@@ -458,5 +523,231 @@ mod tests {
         .err()
         .unwrap();
         assert_eq!(err, SdbError::NotTizen);
+    }
+
+    fn signed_like_package() -> Vec<u8> {
+        // Enough for the emulator's acceptance rule: both signature files, and a
+        // "certificate" whose bytes name the DUID.
+        use base64::Engine;
+        use zip::write::SimpleFileOptions;
+        let fake_cert =
+            base64::engine::general_purpose::STANDARD.encode(format!("URN:tizen:deviceid={DUID}"));
+        let mut wgt = Vec::new();
+        let mut w = zip::ZipWriter::new(std::io::Cursor::new(&mut wgt));
+        for (name, body) in [
+            ("config.xml", "<widget/>".to_string()),
+            ("index.html", "x".repeat(200_000)),
+            ("author-signature.xml", "<Signature/>".to_string()),
+            (
+                "signature1.xml",
+                format!("<Signature><X509Certificate>{fake_cert}</X509Certificate></Signature>"),
+            ),
+        ] {
+            w.start_file(
+                name,
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored),
+            )
+            .unwrap();
+            w.write_all(body.as_bytes()).unwrap();
+        }
+        w.finish().unwrap();
+        wgt
+    }
+
+    fn install(
+        tv: &MockTv,
+        wgt: &[u8],
+        run: bool,
+    ) -> (
+        Result<crate::sdb::InstallOutcome, SdbError>,
+        Vec<(InstallStage, f32)>,
+    ) {
+        let mut events = Vec::new();
+        let result = install_wgt(
+            Ipv4Addr::LOCALHOST,
+            tv.port,
+            &mut std::io::Cursor::new(wgt),
+            wgt.len() as u64,
+            "abcde12345.Demo",
+            Some("abcde12345"),
+            run,
+            Duration::from_secs(5),
+            &CancelToken::new(),
+            &mut |stage, f| events.push((stage, f)),
+        );
+        (result, events)
+    }
+
+    #[test]
+    fn full_install_reports_real_progress_verifies_and_launches() {
+        let tv = tv();
+        let wgt = signed_like_package();
+        let (result, events) = install(&tv, &wgt, true);
+        let outcome = result.unwrap();
+        assert_eq!(outcome.verdict, InstallVerdict::Installed);
+        assert_eq!(outcome.in_app_list, Some(true));
+        assert_eq!(outcome.launched, Some(true));
+        // The installer's own percentages arrive while installing.
+        let install_progress: Vec<f32> = events
+            .iter()
+            .filter(|(s, _)| *s == InstallStage::Installing)
+            .map(|(_, f)| *f)
+            .collect();
+        assert_eq!(install_progress, [0.0, 0.18, 0.61, 1.0]);
+        // Upload progress is monotonic and ends at 100 %.
+        let upload: Vec<f32> = events
+            .iter()
+            .filter(|(s, _)| *s == InstallStage::Uploading)
+            .map(|(_, f)| *f)
+            .collect();
+        assert!(upload.windows(2).all(|w| w[0] <= w[1]));
+        assert_eq!(upload.last().copied(), Some(1.0));
+        let stages: Vec<InstallStage> = events.iter().map(|(s, _)| *s).fold(vec![], |mut v, s| {
+            if v.last() != Some(&s) {
+                v.push(s)
+            }
+            v
+        });
+        assert_eq!(
+            stages,
+            [
+                InstallStage::Connecting,
+                InstallStage::Uploading,
+                InstallStage::Installing,
+                InstallStage::Verifying,
+                InstallStage::Launching
+            ]
+        );
+        let state = tv.state.lock().unwrap();
+        assert!(state.files.is_empty(), "uploaded copy must be removed");
+        assert_eq!(state.installed, ["abcde12345.Demo"]);
+        assert!(state.shell_commands.iter().any(|c| c.starts_with(
+            "0 vd_appinstall abcde12345.Demo /home/owner/share/tmp/sdk_tools/tmp/easytizen-"
+        )));
+    }
+
+    #[test]
+    fn upload_falls_back_to_the_tool_folder() {
+        let tv = MockTv::start_with(
+            Ipv4Addr::LOCALHOST,
+            0,
+            DUID,
+            MockFaults {
+                refuse_tmp_dir: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let (result, _) = install(&tv, &signed_like_package(), false);
+        assert_eq!(result.unwrap().verdict, InstallVerdict::Installed);
+        let state = tv.state.lock().unwrap();
+        assert!(state.shell_commands.iter().any(|c| c.starts_with(
+            "0 vd_appinstall abcde12345.Demo /home/owner/share/tmp/sdk_tools/easytizen-"
+        )));
+        assert!(state.files.is_empty());
+    }
+
+    #[test]
+    fn connection_drop_mid_upload_is_an_error_and_leaves_nothing_behind() {
+        let tv = MockTv::start_with(
+            Ipv4Addr::LOCALHOST,
+            0,
+            DUID,
+            MockFaults {
+                drop_after_upload_bytes: Some(64 * 1024),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let (result, events) = install(&tv, &signed_like_package(), true);
+        let err = result.unwrap_err();
+        assert!(matches!(err, SdbError::Closed | SdbError::Io(_)), "{err:?}");
+        assert!(!events.iter().any(|(s, _)| *s == InstallStage::Installing));
+        let state = tv.state.lock().unwrap();
+        assert!(state.installed.is_empty());
+        assert!(state.files.is_empty());
+    }
+
+    #[test]
+    fn host_ip_mismatch_looks_like_a_dropped_connection() {
+        let tv = MockTv::start_with(
+            Ipv4Addr::LOCALHOST,
+            0,
+            DUID,
+            MockFaults {
+                close_on_connect: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let err = SdbClient::connect(
+            Ipv4Addr::LOCALHOST,
+            tv.port,
+            Duration::from_secs(3),
+            &CancelToken::new(),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(err, SdbError::Closed);
+        assert_eq!(
+            crate::diagnostics::from_sdb_error(&err),
+            crate::diagnostics::Diagnosis::ConnectionDropped
+        );
+    }
+
+    #[test]
+    fn tv_without_capability_still_gets_tv_commands() {
+        let tv = MockTv::start_with(
+            Ipv4Addr::LOCALHOST,
+            0,
+            DUID,
+            MockFaults {
+                refuse_capability: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let id = query_tv(
+            Ipv4Addr::LOCALHOST,
+            tv.port,
+            Duration::from_secs(5),
+            &CancelToken::new(),
+        )
+        .unwrap();
+        assert_eq!(id.duid.as_deref(), Some(DUID));
+        let (result, _) = install(&tv, &signed_like_package(), false);
+        assert_eq!(result.unwrap().verdict, InstallVerdict::Installed);
+    }
+
+    #[test]
+    fn cancelled_install_stops_and_cleans_up() {
+        let tv = tv();
+        let wgt = signed_like_package();
+        let cancel = CancelToken::new();
+        let mut uploads = 0;
+        let result = install_wgt(
+            Ipv4Addr::LOCALHOST,
+            tv.port,
+            &mut std::io::Cursor::new(&wgt),
+            wgt.len() as u64,
+            "abcde12345.Demo",
+            None,
+            false,
+            Duration::from_secs(5),
+            &cancel,
+            &mut |stage, _| {
+                if stage == InstallStage::Uploading {
+                    uploads += 1;
+                    if uploads == 3 {
+                        cancel.cancel();
+                    }
+                }
+            },
+        );
+        assert_eq!(result.err(), Some(SdbError::Cancelled));
+        std::thread::sleep(Duration::from_millis(200));
+        let state = tv.state.lock().unwrap();
+        assert!(state.installed.is_empty());
+        assert!(state.files.is_empty());
     }
 }

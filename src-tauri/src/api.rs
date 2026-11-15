@@ -1,23 +1,21 @@
 //! Tauri commands. The frontend can only reach the system through these typed functions.
 //! Every argument is validated here (and again inside `easytizen-core`) before anything runs.
 //!
-//! Commands that touch a TV, a certificate or a package dispatch to one of two engines:
-//! [`crate::sdk_engine`] (official Tizen SDK + Samsung CLI, desktop) or [`crate::builtin`]
-//! (EasyTizen's own SDB client and signer — the only engine on Android).
+//! There is one engine: EasyTizen's own SDB client, signer and Samsung certificate flow
+//! ([`crate::builtin`] on top of `easytizen-core`). Nothing is downloaded or started besides it.
 
 use crate::history::{self, HistoryEntry};
-use crate::settings::{self, Engine, SavedCertificateProfile, SavedDevice, Settings};
-use crate::{builtin, sdk_engine, AppState};
+use crate::settings::{self, SavedCertificateProfile, SavedDevice, Settings};
+use crate::{applog, builtin, AppState};
 use easytizen_core::cancel::CancelToken;
 use easytizen_core::checks::{self, ExtraChecks};
-use easytizen_core::connectivity::{local_ip_towards, probe_tcp, Probe, MIN_DIAGNOSTIC_TIMEOUT};
 use easytizen_core::diagnostics::{self, Diagnosis};
+use easytizen_core::discovery::netif::{self, LocalInterface};
+use easytizen_core::discovery::{FoundTv, TvCheck};
 use easytizen_core::package::{analyze_wgt, PackageError, PackageReport};
-use easytizen_core::sdb::scan::{primary_local_ip, subnet_prefix_of};
 use easytizen_core::validate::{self, parse_port, parse_tv_ip};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 use tauri::{AppHandle, State};
 
 #[derive(Debug, Serialize, Clone)]
@@ -80,6 +78,13 @@ pub fn cancel_operation(state: State<'_, AppState>, op_id: String) {
     }
 }
 
+fn save(state: &AppState, s: &Settings) -> ApiResult<()> {
+    settings::save(&state.data_dir, s).map_err(|e| {
+        applog::error("settings", format!("cannot save settings: {:?}", e.kind()));
+        ApiError::new("io_error")
+    })
+}
+
 // ---------- shared result shapes ----------
 
 #[derive(Serialize)]
@@ -110,25 +115,22 @@ pub fn success<T>(data: T) -> Outcome<T> {
 }
 
 #[derive(Serialize)]
-pub struct FoundTv {
-    pub ip: String,
-    pub port: u16,
-    pub name: Option<String>,
-}
-
-#[derive(Serialize)]
 pub struct ScanData {
     pub devices: Vec<FoundTv>,
-    pub subnets: Vec<String>,
+    /// Swept networks, e.g. `192.168.1.0/24`.
+    pub networks: Vec<String>,
+    pub interfaces: Vec<LocalInterface>,
+    pub swept_hosts: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct TvInfo {
     pub ip: String,
     pub port: u16,
     pub duid: Option<String>,
     pub name: String,
     pub model: Option<String>,
+    pub tizen_version: Option<String>,
     pub host_ip: Option<String>,
 }
 
@@ -137,7 +139,8 @@ pub struct ConnectOutcome {
     #[serde(flatten)]
     pub outcome: Outcome<TvInfo>,
     pub host_ip: Option<String>,
-    pub probe: Option<Probe>,
+    /// Every condition that was checked, for the readiness list in the UI.
+    pub check: TvCheck,
 }
 
 #[derive(Serialize)]
@@ -146,6 +149,8 @@ pub struct InstallResult {
     pub app_id: Option<String>,
     pub version: Option<String>,
     pub tv_ip: String,
+    /// The TV's app list shows the app after installation. `None`: could not be read.
+    pub in_app_list: Option<bool>,
     /// `Some(false)` when launching was requested but the TV did not confirm it.
     pub launched: Option<bool>,
 }
@@ -155,37 +160,50 @@ pub fn remember_device(
     state: &AppState,
     ip: &str,
     port: u16,
+    suggested_name: Option<String>,
     duid: Option<String>,
     model: Option<String>,
+    tizen_version: Option<String>,
 ) -> String {
     let mut s = state.settings.lock().unwrap();
     let existing = s.devices.iter().position(|d| d.ip == ip && d.port == port);
+    // The same TV (same DUID) at a new address: update the entry instead of duplicating it.
+    let existing = existing.or_else(|| {
+        duid.as_ref()
+            .and_then(|id| s.devices.iter().position(|d| d.duid.as_ref() == Some(id)))
+    });
     let name = match existing {
         Some(i) => {
             let device = &mut s.devices[i];
+            device.ip = ip.to_string();
+            device.port = port;
             if duid.is_some() {
                 device.duid = duid;
             }
             if model.is_some() {
                 device.model = model;
             }
+            if tizen_version.is_some() {
+                device.tizen_version = tizen_version;
+            }
             device.last_connected = Some(crate::now_secs());
             device.name.clone()
         }
         None => {
-            let name = format!("Samsung TV {ip}");
+            let name = suggested_name.unwrap_or_else(|| format!("Samsung TV {ip}"));
             s.devices.push(SavedDevice {
                 ip: ip.to_string(),
                 port,
                 name: name.clone(),
                 duid,
                 model,
+                tizen_version,
                 last_connected: Some(crate::now_secs()),
             });
             name
         }
     };
-    let _ = settings::save(&state.data_dir, &s);
+    let _ = save(state, &s);
     name
 }
 
@@ -236,14 +254,6 @@ pub fn require_verified_duids(state: &AppState, duids: &[String]) -> ApiResult<(
     Ok(())
 }
 
-fn current_engine(state: &AppState) -> Engine {
-    if cfg!(mobile) {
-        Engine::Builtin
-    } else {
-        state.settings.lock().unwrap().engine
-    }
-}
-
 // ---------- app info, settings ----------
 
 #[derive(Serialize)]
@@ -253,10 +263,21 @@ pub struct AppInfo {
     platform: &'static str,
     arch: &'static str,
     mobile: bool,
-    /// Engines this build can use.
-    engines: Vec<Engine>,
     /// This device's address on the local network — the value for the TV's "Host PC IP".
     host_ip: Option<String>,
+    /// Folder of the log file (shown in Settings and the diagnostics report).
+    log_dir: Option<String>,
+}
+
+/// The LAN address to show as "Host PC IP": the primary interface if it is a LAN one,
+/// otherwise the first private LAN interface.
+pub fn lan_host_ip(interfaces: &[LocalInterface]) -> Option<String> {
+    interfaces
+        .iter()
+        .find(|i| i.primary && i.kind.is_lan() && i.private)
+        .or_else(|| interfaces.iter().find(|i| i.kind.is_lan() && i.private))
+        .or_else(|| interfaces.iter().find(|i| i.kind.is_lan()))
+        .map(|i| i.ip.to_string())
 }
 
 #[tauri::command]
@@ -266,13 +287,29 @@ pub fn app_info() -> AppInfo {
         platform: std::env::consts::OS,
         arch: std::env::consts::ARCH,
         mobile: cfg!(mobile),
-        engines: if cfg!(mobile) {
-            vec![Engine::Builtin]
-        } else {
-            vec![Engine::Sdk, Engine::Builtin]
-        },
-        host_ip: primary_local_ip().map(|ip| ip.to_string()),
+        host_ip: lan_host_ip(&netif::local_interfaces()),
+        log_dir: applog::dir().map(|d| d.to_string_lossy().into_owned()),
     }
+}
+
+#[derive(Serialize)]
+pub struct NetworkInfo {
+    pub host_ip: Option<String>,
+    pub interfaces: Vec<LocalInterface>,
+}
+
+/// Current local addresses (they change when the phone switches Wi-Fi networks).
+#[tauri::command]
+pub async fn network_info() -> ApiResult<NetworkInfo> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let interfaces = netif::local_interfaces();
+        NetworkInfo {
+            host_ip: lan_host_ip(&interfaces),
+            interfaces,
+        }
+    })
+    .await
+    .map_err(|_| ApiError::new("internal"))
 }
 
 #[tauri::command]
@@ -302,32 +339,24 @@ pub fn save_preferences(
     s.default_port = default_port;
     s.timeout_ms = timeout_ms;
     s.check_updates = check_updates;
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))
-}
-
-#[tauri::command]
-pub fn set_engine(state: State<'_, AppState>, engine: Engine) -> ApiResult<()> {
-    if cfg!(mobile) && engine != Engine::Builtin {
-        return Err(ApiError::new("engine_unavailable"));
-    }
-    let mut s = state.settings.lock().unwrap();
-    s.engine = engine;
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))
+    save(&state, &s)
 }
 
 #[tauri::command]
 pub fn complete_onboarding(state: State<'_, AppState>) -> ApiResult<()> {
     let mut s = state.settings.lock().unwrap();
     s.onboarding_done = true;
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))
+    save(&state, &s)
 }
+
+// ---------- saved TVs ----------
 
 #[tauri::command]
 pub fn remove_device(state: State<'_, AppState>, ip: String, port: u32) -> ApiResult<()> {
     let port = parse_port(port)?;
     let mut s = state.settings.lock().unwrap();
     s.devices.retain(|d| !(d.ip == ip && d.port == port));
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))
+    save(&state, &s)
 }
 
 #[tauri::command]
@@ -351,50 +380,36 @@ pub fn rename_device(
     if let Some(d) = s.devices.iter_mut().find(|d| d.ip == ip && d.port == port) {
         d.name = name;
     }
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))
+    save(&state, &s)
 }
 
-// ---------- SDK toolchain (desktop engine) ----------
-
+/// Changes a saved TV's address (the router gave it a new one).
 #[tauri::command]
-pub fn toolchain_status(app: AppHandle, state: State<'_, AppState>) -> sdk_engine::ToolchainStatus {
-    sdk_engine::toolchain_status(&app, &state)
-}
-
-#[tauri::command]
-pub fn find_existing_sdk() -> Vec<String> {
-    sdk_engine::find_existing_sdk()
-}
-
-#[tauri::command]
-pub async fn set_sdk_path(
-    app: AppHandle,
+pub fn update_device_address(
     state: State<'_, AppState>,
-    path: String,
+    ip: String,
+    port: u32,
+    new_ip: String,
+    new_port: u32,
 ) -> ApiResult<()> {
-    sdk_engine::set_sdk_path(&app, &state, path).await
-}
-
-#[tauri::command]
-pub fn sdk_preflight(
-    state: State<'_, AppState>,
-    path: Option<String>,
-) -> crate::sdk_installer::Preflight {
-    let fallback = state.settings.lock().unwrap().pending_sdk_install.clone();
-    crate::sdk_installer::preflight(path.as_deref().or(fallback.as_deref()))
-}
-
-#[tauri::command]
-pub async fn install_samsung_sdk(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    path: Option<String>,
-    op_id: Option<String>,
-) -> ApiResult<String> {
-    let cancel = register(&state, &op_id);
-    let result = sdk_engine::install_sdk(&app, &state, path, op_id.clone(), cancel).await;
-    unregister(&state, &op_id);
-    result
+    let port = parse_port(port)?;
+    let new_ip = parse_tv_ip(&new_ip)?.to_string();
+    let new_port = parse_port(new_port)?;
+    let mut s = state.settings.lock().unwrap();
+    if s.devices
+        .iter()
+        .any(|d| d.ip == new_ip && d.port == new_port && !(d.ip == ip && d.port == port))
+    {
+        return Err(ApiError::new("device_exists"));
+    }
+    let device = s
+        .devices
+        .iter_mut()
+        .find(|d| d.ip == ip && d.port == port)
+        .ok_or_else(|| ApiError::new("device_missing"))?;
+    device.ip = new_ip;
+    device.port = new_port;
+    save(&state, &s)
 }
 
 // ---------- TVs ----------
@@ -410,78 +425,43 @@ pub async fn scan_tvs(
         validate::parse_subnet_prefix(s)?;
     }
     let cancel = register(&state, &op_id);
-    let result = match current_engine(&state) {
-        Engine::Sdk => sdk_engine::scan(&app, &state, subnet, cancel).await,
-        Engine::Builtin => builtin::scan(&app, &state, subnet, op_id.clone(), cancel).await,
-    };
+    let result = builtin::scan(&app, &state, subnet, op_id.clone(), cancel).await;
     unregister(&state, &op_id);
     result
 }
 
 #[tauri::command]
 pub async fn connect_tv(
-    app: AppHandle,
     state: State<'_, AppState>,
     ip: String,
     port: Option<u32>,
     op_id: Option<String>,
 ) -> ApiResult<ConnectOutcome> {
     let ip4 = parse_tv_ip(&ip)?;
-    let (default_port, timeout_ms) = {
-        let s = state.settings.lock().unwrap();
-        (s.default_port, s.timeout_ms)
-    };
     let port = match port {
         Some(p) => parse_port(p)?,
-        None => default_port,
+        None => state.settings.lock().unwrap().default_port,
     };
-    let host_ip = local_ip_towards(ip4).map(|i| i.to_string());
-
-    // Our own reachability probe first, so a failure can be explained precisely.
-    let probe_timeout =
-        Duration::from_millis(timeout_ms.clamp(MIN_DIAGNOSTIC_TIMEOUT.as_millis() as u64, 15_000));
-    let probe = tauri::async_runtime::spawn_blocking(move || probe_tcp(ip4, port, probe_timeout))
-        .await
-        .map_err(|_| ApiError::new("internal"))?;
-    if let Some(d) = diagnostics::from_probe(probe) {
-        return Ok(ConnectOutcome {
-            outcome: fail(d, None),
-            host_ip,
-            probe: Some(probe),
-        });
-    }
-
     let cancel = register(&state, &op_id);
-    let outcome = match current_engine(&state) {
-        Engine::Sdk => sdk_engine::connect(&app, &state, ip4, port, cancel).await,
-        Engine::Builtin => builtin::connect(&state, ip4, port, cancel).await,
-    };
+    let result = builtin::connect(&state, ip4, port, true, cancel).await;
     unregister(&state, &op_id);
-    let mut outcome = outcome?;
-    if let Some(info) = outcome.data.as_mut() {
-        info.host_ip = host_ip.clone();
-    }
-    Ok(ConnectOutcome {
-        outcome,
-        host_ip,
-        probe: Some(probe),
-    })
+    result
 }
 
+/// Checks a TV without reading its identity or saving anything (saved TVs' availability).
 #[tauri::command]
-pub async fn disconnect_tv(
-    app: AppHandle,
+pub async fn check_tv(
     state: State<'_, AppState>,
     ip: String,
     port: u32,
-) -> ApiResult<bool> {
+    op_id: Option<String>,
+) -> ApiResult<TvCheck> {
     let ip4 = parse_tv_ip(&ip)?;
     let port = parse_port(port)?;
-    match current_engine(&state) {
-        Engine::Sdk => sdk_engine::disconnect(&app, &state, ip4, port).await,
-        // The built-in engine opens a connection per operation; nothing stays connected.
-        Engine::Builtin => Ok(true),
-    }
+    let cancel = register(&state, &op_id);
+    let result = builtin::check(&state, ip4, port, cancel).await;
+    unregister(&state, &op_id);
+    result
 }
 
 // ---------- packages ----------
@@ -513,7 +493,7 @@ pub struct OpenedPackage {
 }
 
 /// Reads a document the user picked into `destination` (Android `content://` URIs and
-/// plain paths alike), with a hard size cap.
+/// plain paths alike), with a hard size cap. A partial copy is removed on any failure.
 pub fn copy_picked_file(
     app: &AppHandle,
     source: &str,
@@ -532,24 +512,27 @@ pub fn copy_picked_file(
     let mut output = std::fs::File::create(destination).map_err(|_| ApiError::new("io_error"))?;
     let mut buffer = vec![0u8; 256 * 1024];
     let mut total = 0u64;
-    loop {
-        let n = input
-            .read(&mut buffer)
-            .map_err(|_| ApiError::new("pkg_unreadable"))?;
+    let result = loop {
+        let n = match input.read(&mut buffer) {
+            Ok(n) => n,
+            Err(_) => break Err(ApiError::new("pkg_unreadable")),
+        };
         if n == 0 {
-            break;
+            break Ok(total);
         }
         total += n as u64;
         if total > cap {
-            drop(output);
-            let _ = std::fs::remove_file(destination);
-            return Err(ApiError::new("pkg_too_large"));
+            break Err(ApiError::new("pkg_too_large"));
         }
-        output
-            .write_all(&buffer[..n])
-            .map_err(|_| ApiError::new("io_error"))?;
+        if output.write_all(&buffer[..n]).is_err() {
+            break Err(ApiError::new("io_error"));
+        }
+    };
+    if result.is_err() {
+        drop(output);
+        let _ = std::fs::remove_file(destination);
     }
-    Ok(total)
+    result
 }
 
 pub fn is_uri(source: &str) -> bool {
@@ -593,6 +576,7 @@ pub async fn open_package(
                 if path.starts_with(&staging) {
                     let _ = std::fs::remove_file(&path);
                 }
+                applog::warn("package", format!("rejected: {e}"));
                 Err(package_error(&e))
             }
         }
@@ -626,7 +610,7 @@ pub async fn verify_package(
 pub fn set_extra_package_checks(state: State<'_, AppState>, enabled: bool) -> ApiResult<()> {
     let mut s = state.settings.lock().unwrap();
     s.extra_package_checks = enabled;
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))
+    save(&state, &s)
 }
 
 // ---------- certificates ----------
@@ -658,7 +642,6 @@ pub async fn create_certificate(
         return Err(ApiError::new("invalid_duid"));
     }
     require_verified_duids(&state, &args.duids)?;
-    let engine = current_engine(&state);
     {
         let s = state.settings.lock().unwrap();
         if let Some(existing) = s
@@ -666,7 +649,7 @@ pub async fn create_certificate(
             .iter()
             .find(|p| p.name == args.profile_name)
         {
-            if existing.engine == engine && args.duids.iter().all(|d| existing.covers(d)) {
+            if !existing.is_legacy() && args.duids.iter().all(|d| existing.covers(d)) {
                 return Ok(existing.clone());
             }
             return Err(ApiError::new("profile_exists"));
@@ -674,18 +657,15 @@ pub async fn create_certificate(
     }
     let args = CreateCertificateArgs { identity, ..args };
     let cancel = register(&state, &op_id);
-    let result = match engine {
-        Engine::Sdk => sdk_engine::create_certificate(&app, &state, &args, cancel).await,
-        Engine::Builtin => {
-            builtin::create_certificate(&app, &state, &args, op_id.clone(), cancel).await
-        }
-    };
+    let result = builtin::create_certificate(&app, &state, &args, op_id.clone(), cancel).await;
     unregister(&state, &op_id);
-    let profile = result?;
+    let profile =
+        result.inspect_err(|e| applog::warn("certificate", format!("create: {}", e.code)))?;
+    applog::info("certificate", format!("created profile {}", profile.name));
     let mut s = state.settings.lock().unwrap();
     s.certificate_profiles.retain(|p| p.name != profile.name);
     s.certificate_profiles.push(profile.clone());
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))?;
+    save(&state, &s)?;
     Ok(profile)
 }
 
@@ -720,40 +700,76 @@ pub async fn import_certificate(
     {
         return Err(ApiError::new("profile_exists"));
     }
-    let profile = match current_engine(&state) {
-        Engine::Sdk => sdk_engine::import_certificate(&app, &state, &args).await,
-        Engine::Builtin => builtin::import_certificate(&app, &state, &args).await,
-    }?;
+    let profile = builtin::import_certificate(&app, &state, &args)
+        .await
+        .inspect_err(|e| applog::warn("certificate", format!("import: {}", e.code)))?;
     let mut s = state.settings.lock().unwrap();
     s.certificate_profiles.push(profile.clone());
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))?;
+    save(&state, &s)?;
     Ok(profile)
 }
 
+/// Moves a profile made by an older version through the Tizen SDK into EasyTizen's own store.
+/// The SDK's files are read, never changed or deleted.
 #[tauri::command]
-pub async fn remove_certificate(
-    app: AppHandle,
+pub async fn transfer_legacy_certificate(
     state: State<'_, AppState>,
     profile_name: String,
-) -> ApiResult<()> {
+    password: String,
+) -> ApiResult<SavedCertificateProfile> {
     validate_profile_name(&profile_name)?;
-    let engine = state
+    if password.is_empty() {
+        return Err(ApiError::new("cert_password_wrong"));
+    }
+    let (profile, sdk_path) = {
+        let s = state.settings.lock().unwrap();
+        let profile = s
+            .certificate_profiles
+            .iter()
+            .find(|p| p.name == profile_name && p.is_legacy())
+            .cloned()
+            .ok_or_else(|| ApiError::new("certificate_profile_missing"))?;
+        (profile, s.legacy_sdk_path.clone())
+    };
+    let moved = builtin::transfer_legacy_certificate(&state, &profile, sdk_path, password)
+        .await
+        .inspect_err(|e| applog::warn("certificate", format!("transfer: {}", e.code)))?;
+    let mut s = state.settings.lock().unwrap();
+    if let Some(slot) = s
+        .certificate_profiles
+        .iter_mut()
+        .find(|p| p.name == profile_name)
+    {
+        *slot = moved.clone();
+    }
+    save(&state, &s)?;
+    applog::info(
+        "certificate",
+        format!("transferred legacy profile {profile_name}"),
+    );
+    Ok(moved)
+}
+
+#[tauri::command]
+pub async fn remove_certificate(state: State<'_, AppState>, profile_name: String) -> ApiResult<()> {
+    validate_profile_name(&profile_name)?;
+    let legacy = state
         .settings
         .lock()
         .unwrap()
         .certificate_profiles
         .iter()
         .find(|p| p.name == profile_name)
-        .map(|p| p.engine)
+        .map(|p| p.is_legacy())
         .ok_or_else(|| ApiError::new("certificate_profile_missing"))?;
-    match engine {
-        Engine::Sdk => sdk_engine::remove_certificate(&app, &state, &profile_name).await?,
-        Engine::Builtin => builtin::remove_certificate(&state, &profile_name)?,
+    // A legacy profile's keys belong to the Tizen SDK keystore: only the entry is removed.
+    if !legacy {
+        builtin::remove_certificate(&state, &profile_name)?;
     }
     state.passwords.lock().unwrap().remove(&profile_name);
     let mut s = state.settings.lock().unwrap();
     s.certificate_profiles.retain(|p| p.name != profile_name);
-    settings::save(&state.data_dir, &s).map_err(|_| ApiError::new("io_error"))
+    save(&state, &s)
 }
 
 // ---------- install ----------
@@ -770,7 +786,7 @@ pub struct InstallArgs {
     pub run_after_install: bool,
     /// Sign a working copy with the profile (default). `false` installs the file as it is.
     pub resign: bool,
-    /// Certificate password for the built-in engine; remembered in memory for this session.
+    /// Certificate password; remembered in memory for this session.
     pub password: Option<String>,
     /// The additional checks are off and the user confirmed installing without them.
     #[serde(default)]
@@ -805,7 +821,7 @@ pub fn package_gate(
     Ok((report, extra))
 }
 
-/// Everything an engine needs to run one installation.
+/// Everything the engine needs to run one installation.
 pub struct InstallJob {
     pub args: InstallArgs,
     pub report: PackageReport,
@@ -863,6 +879,9 @@ pub async fn install_package(
                     .find(|p| &p.name == name)
                     .cloned()
                     .ok_or_else(|| ApiError::new("certificate_profile_missing"))?;
+                if profile.is_legacy() {
+                    return Err(ApiError::new("certificate_legacy"));
+                }
                 if !profile.covers(duid) {
                     return Err(ApiError::new("profile_duid_mismatch"));
                 }
@@ -878,13 +897,6 @@ pub async fn install_package(
         return Err(ApiError::new("package_not_signed"));
     }
 
-    let engine = profile
-        .as_ref()
-        .map(|p| p.engine)
-        .unwrap_or_else(|| current_engine(&state));
-    if cfg!(mobile) && engine == Engine::Sdk {
-        return Err(ApiError::new("engine_unavailable"));
-    }
     let cancel = register(&state, &op_id);
     let job = InstallJob {
         args,
@@ -895,10 +907,15 @@ pub async fn install_package(
         op_id: op_id.clone(),
         cancel,
     };
-    let result = match engine {
-        Engine::Sdk => sdk_engine::install(&app, &state, job).await,
-        Engine::Builtin => builtin::install(&app, &state, job).await,
-    };
+    applog::info(
+        "install",
+        format!(
+            "start {} ({}) -> {ip}:{port}",
+            report.app_id.as_deref().unwrap_or("?"),
+            report.file_name
+        ),
+    );
+    let result = builtin::install(&app, &state, job).await;
     unregister(&state, &op_id);
 
     let (outcome, code, detail) = match &result {
@@ -906,6 +923,23 @@ pub async fn install_package(
         Err(e) if e.code == "cancelled" => ("cancelled", None, None),
         Err(e) => ("failed", Some(e.code.clone()), e.detail.clone()),
     };
+    match &result {
+        Ok(r) => applog::info(
+            "install",
+            format!(
+                "success on {ip} (app list: {:?}, launched: {:?})",
+                r.in_app_list, r.launched
+            ),
+        ),
+        Err(e) => applog::warn(
+            "install",
+            format!(
+                "{outcome}: {} {}",
+                e.code,
+                e.detail.as_deref().unwrap_or("")
+            ),
+        ),
+    }
     // A wrong or missing password is a prompt, not an installation attempt.
     if !matches!(
         code.as_deref(),
@@ -939,9 +973,6 @@ pub async fn uninstall_app(
 ) -> ApiResult<()> {
     let ip4 = parse_tv_ip(&ip)?;
     let port = parse_port(port)?;
-    if current_engine(&state) != Engine::Builtin {
-        return Err(ApiError::new("engine_unavailable"));
-    }
     builtin::uninstall(&state, ip4, port, app_id).await
 }
 
@@ -972,7 +1003,7 @@ fn mask_duid(duid: &str) -> String {
 /// A plain-text report for bug reports. Contains no passwords, keys or tokens; DUIDs are
 /// shortened and the home folder is replaced with `~`.
 #[tauri::command]
-pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String {
+pub fn diagnostics_report(state: State<'_, AppState>) -> String {
     let s = state.settings.lock().unwrap().clone();
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
@@ -991,20 +1022,23 @@ pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String 
         std::env::consts::OS,
         std::env::consts::ARCH
     ));
+    let interfaces = netif::local_interfaces();
     lines.push(format!(
-        "Engine: {:?}",
-        if cfg!(mobile) {
-            Engine::Builtin
-        } else {
-            s.engine
-        }
+        "Host PC IP to enter on the TV: {}",
+        lan_host_ip(&interfaces).unwrap_or_else(|| "none (no local network)".into())
     ));
-    lines.push(format!(
-        "Local address: {}",
-        primary_local_ip()
-            .map(|ip| format!("{ip} (subnet {}.x)", subnet_prefix_of(ip)))
-            .unwrap_or_else(|| "none found".into())
-    ));
+    lines.push("Network interfaces:".into());
+    for i in &interfaces {
+        lines.push(format!(
+            "  {} {}/{} {:?}{}{}",
+            i.name,
+            i.ip,
+            i.prefix_len,
+            i.kind,
+            if i.primary { " primary" } else { "" },
+            if i.scannable() { " searched" } else { "" }
+        ));
+    }
     lines.push(format!(
         "Default TV port: {}, timeout: {} ms",
         s.default_port, s.timeout_ms
@@ -1019,36 +1053,20 @@ pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String 
             "absent"
         }
     ));
-    if cfg!(desktop) {
-        let t = sdk_engine::toolchain_status(&app, &state);
-        lines.push(format!(
-            "Samsung tools: node={:?} cli={} sdk={} tv_extension={} path={}",
-            t.node,
-            t.cli_ready,
-            t.sdk_ready,
-            t.tv_extension_ready,
-            t.sdk_path
-                .as_deref()
-                .map(tidy)
-                .unwrap_or_else(|| "not set".into())
-        ));
-        if let Some(pending) = &s.pending_sdk_install {
-            lines.push(format!("Unfinished SDK installation: {}", tidy(pending)));
-        }
-    }
     lines.push(format!("\nSaved TVs: {}", s.devices.len()));
     for d in &s.devices {
         lines.push(format!(
-            "  {}:{}  model={}  duid={}  last_connected={}",
+            "  {}:{}  model={}  tizen={}  duid={}  last_connected={}",
             d.ip,
             d.port,
             d.model.as_deref().unwrap_or("?"),
+            d.tizen_version.as_deref().unwrap_or("?"),
             d.duid
                 .as_deref()
                 .map(mask_duid)
                 .unwrap_or_else(|| "none".into()),
             d.last_connected
-                .map(|t| t.to_string())
+                .map(applog::format_utc)
                 .unwrap_or_else(|| "never".into())
         ));
     }
@@ -1058,9 +1076,13 @@ pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String 
     ));
     for p in &s.certificate_profiles {
         lines.push(format!(
-            "  {}  engine={:?}  tvs={}  imported={}  expires={}",
+            "  {}  {}  tvs={}  imported={}  expires={}",
             p.name,
-            p.engine,
+            if p.is_legacy() {
+                "legacy-sdk (needs transfer)"
+            } else {
+                "ready"
+            },
             p.duids
                 .iter()
                 .map(|d| mask_duid(d))
@@ -1068,7 +1090,7 @@ pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String 
                 .join(","),
             p.imported,
             p.expires_at
-                .map(|t| t.to_string())
+                .map(applog::format_utc)
                 .unwrap_or_else(|| "?".into())
         ));
     }
@@ -1077,7 +1099,7 @@ pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String 
     for e in entries.iter().take(10) {
         lines.push(format!(
             "  {}  {}  {} -> {}  {}{}",
-            e.time,
+            applog::format_utc(e.time),
             e.result,
             e.app_id.as_deref().unwrap_or(&e.file_name),
             e.tv_ip,
@@ -1087,6 +1109,10 @@ pub fn diagnostics_report(app: AppHandle, state: State<'_, AppState>) -> String 
                 .map(|d| format!("\n      {}", tidy(d).replace('\n', "\n      ")))
                 .unwrap_or_default()
         ));
+    }
+    lines.push("\nLog (last 60 lines):".into());
+    for l in applog::tail(60) {
+        lines.push(format!("  {}", tidy(&l)));
     }
     diagnostics::redact(&lines.join("\n"))
 }
@@ -1139,9 +1165,23 @@ fn is_allowed_external(url: &str) -> bool {
         && !url.chars().any(|c| c.is_control() || c == ' ')
 }
 
+/// Opens the folder with EasyTizen's log file (desktop).
+#[tauri::command]
+pub fn open_log_folder(app: AppHandle) -> ApiResult<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = applog::dir().ok_or_else(|| ApiError::new("io_error"))?;
+    if cfg!(mobile) {
+        return Err(ApiError::new("engine_unavailable"));
+    }
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|_| ApiError::new("io_error"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use easytizen_core::discovery::netif::InterfaceKind;
 
     #[test]
     fn password_policy() {
@@ -1159,10 +1199,41 @@ mod tests {
 
     #[test]
     fn profile_names() {
-        assert!(validate_profile_name("EasyTizen-TV_1").is_ok());
+        assert!(validate_profile_name("EasyTizen_1").is_ok());
         for bad in ["ab", "has space", "sl/ash", "../up", "naïve"] {
             assert!(validate_profile_name(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn host_ip_prefers_the_primary_lan_interface() {
+        let i = |name: &str, ip: [u8; 4], kind, primary| LocalInterface {
+            name: name.into(),
+            ip: ip.into(),
+            prefix_len: 24,
+            kind,
+            primary,
+            private: std::net::Ipv4Addr::from(ip).is_private(),
+        };
+        // A VPN is the default route: the Wi-Fi address is still the one for the TV.
+        let list = vec![
+            i("tun0", [10, 8, 0, 2], InterfaceKind::Vpn, true),
+            i("wlan0", [192, 168, 1, 23], InterfaceKind::Wifi, false),
+        ];
+        assert_eq!(lan_host_ip(&list).as_deref(), Some("192.168.1.23"));
+        let list = vec![
+            i("eth0", [192, 168, 0, 5], InterfaceKind::Ethernet, false),
+            i("wlan0", [192, 168, 1, 23], InterfaceKind::Wifi, true),
+        ];
+        assert_eq!(lan_host_ip(&list).as_deref(), Some("192.168.1.23"));
+        // Phone on mobile data only: no Host PC IP to offer.
+        let list = vec![i(
+            "rmnet_data0",
+            [10, 64, 1, 2],
+            InterfaceKind::Mobile,
+            true,
+        )];
+        assert_eq!(lan_host_ip(&list), None);
     }
 
     fn wgt(entries: &[(&str, &[u8])]) -> tempfile::NamedTempFile {
@@ -1248,6 +1319,19 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn packages_in_folders_with_cyrillic_and_spaces() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("Мои приложения").join("TV apps (2026)");
+        std::fs::create_dir_all(&folder).unwrap();
+        let src = wgt(&[("config.xml", CONFIG.as_bytes()), ("index.html", b"x")]);
+        let path = folder.join("Приложение тест.wgt");
+        std::fs::copy(src.path(), &path).unwrap();
+        assert!(validate::check_cli_path(path.to_str().unwrap()).is_ok());
+        let (report, _) = package_gate(&path, true, false, false).unwrap();
+        assert_eq!(report.file_name, "Приложение тест.wgt");
     }
 
     #[test]

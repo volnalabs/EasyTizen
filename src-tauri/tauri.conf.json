@@ -40,10 +40,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "../resources/samsung-cli/": "samsung-cli/",
-      "../resources/node/": "node/"
-    },
     "category": "Utility",
     "publisher": "volnalabs",
     "copyright": "EasyTizen contributors, Apache-2.0",

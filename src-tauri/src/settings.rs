@@ -12,25 +12,28 @@ pub struct SavedDevice {
     pub duid: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    /// Tizen version reported by the TV at the last connection.
+    #[serde(default)]
+    pub tizen_version: Option<String>,
     /// Unix seconds of the last confirmed connection.
     #[serde(default)]
     pub last_connected: Option<i64>,
 }
 
-/// Which toolchain created (and can use) a certificate profile.
+/// Where a certificate profile's keys live.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Engine {
-    /// Official Tizen SDK + Samsung CLI (desktop only).
+    /// Created by an older version through the Tizen SDK: the keys are in the SDK's keystore.
+    /// EasyTizen no longer uses the SDK; such a profile is moved into the app's own store once,
+    /// with its password ("Transfer" on the Certificates page). Nothing is deleted.
     #[default]
     Sdk,
-    /// EasyTizen's built-in SDB client and signer (all platforms; the only one on Android).
+    /// EasyTizen's own store: password-protected `.p12` files in the app data folder.
     Builtin,
 }
 
-/// Public metadata of a signing profile. Keys and passwords live elsewhere: in the Tizen
-/// SDK keystore (`Sdk`) or in password-protected `.p12` files in the app data folder
-/// (`Builtin`).
+/// Public metadata of a signing profile. Keys and passwords live elsewhere.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SavedCertificateProfile {
     pub name: String,
@@ -53,13 +56,13 @@ pub struct SavedCertificateProfile {
 }
 
 impl SavedCertificateProfile {
-    pub fn new(name: String, identity: String, duids: Vec<String>, engine: Engine) -> Self {
+    pub fn new(name: String, identity: String, duids: Vec<String>) -> Self {
         Self {
             name,
             identity,
             duids,
             duid: None,
-            engine,
+            engine: Engine::Builtin,
             created_at: Some(crate::now_secs()),
             expires_at: None,
             imported: false,
@@ -67,6 +70,10 @@ impl SavedCertificateProfile {
     }
     pub fn covers(&self, duid: &str) -> bool {
         self.duids.iter().any(|d| d.eq_ignore_ascii_case(duid))
+    }
+    /// Keys still in an old Tizen SDK keystore (must be transferred before use).
+    pub fn is_legacy(&self) -> bool {
+        self.engine == Engine::Sdk
     }
 }
 
@@ -77,8 +84,10 @@ pub struct Settings {
     pub theme: String,
     /// "auto" | "ru" | "en"
     pub language: String,
-    pub engine: Engine,
-    pub sdk_path: Option<String>,
+    /// Tizen SDK folder recorded by versions before 1.0. Used only to find the keystore of
+    /// legacy certificate profiles; nothing is ever downloaded or run from it.
+    #[serde(rename = "sdk_path")]
+    pub legacy_sdk_path: Option<String>,
     pub default_port: u16,
     pub timeout_ms: u64,
     /// Saved TVs are remembered between launches but are never treated as connected without
@@ -86,11 +95,9 @@ pub struct Settings {
     pub devices: Vec<SavedDevice>,
     pub certificate_profiles: Vec<SavedCertificateProfile>,
     pub onboarding_done: bool,
-    /// Automatic updates: look for a newer EasyTizen release periodically and download and
-    /// verify it in the background. Off means no background network activity at all.
+    /// Automatic updates of EasyTizen itself: look for a newer release periodically and
+    /// download and verify it in the background. Off means no background network activity.
     pub check_updates: bool,
-    /// Folder of an SDK installation that was started but has not finished (resume hint).
-    pub pending_sdk_install: Option<String>,
     /// Additional package checks before installation (app ID, start page, executables,
     /// duplicate names, existing signature). The mandatory archive-safety checks are not
     /// affected by this switch. Missing in older settings files, so it defaults to on.
@@ -104,19 +111,13 @@ impl Default for Settings {
         Self {
             theme: "system".into(),
             language: "auto".into(),
-            engine: if cfg!(target_os = "android") {
-                Engine::Builtin
-            } else {
-                Engine::Sdk
-            },
-            sdk_path: None,
+            legacy_sdk_path: None,
             default_port: 26101,
             timeout_ms: 3000,
             devices: vec![],
             certificate_profiles: vec![],
             onboarding_done: false,
             check_updates: true,
-            pending_sdk_install: None,
             extra_package_checks: true,
             last_update_check: None,
         }
@@ -141,11 +142,8 @@ pub fn load(dir: &Path) -> Settings {
         }
     }
     // People upgrading from TV Deploy already went through setup.
-    if existed && (settings.sdk_path.is_some() || !settings.devices.is_empty()) {
+    if existed && (settings.legacy_sdk_path.is_some() || !settings.devices.is_empty()) {
         settings.onboarding_done = true;
-    }
-    if cfg!(target_os = "android") {
-        settings.engine = Engine::Builtin;
     }
     settings
 }
@@ -174,6 +172,7 @@ mod tests {
             name: "TV".into(),
             duid: None,
             model: None,
+            tizen_version: None,
             last_connected: None,
         });
         save(d.path(), &s).unwrap();
@@ -196,10 +195,14 @@ mod tests {
         .unwrap();
         let s = load(d.path());
         assert_eq!(s.devices[0].name, "Гостиная");
-        assert_eq!(s.sdk_path.as_deref(), Some("/home/u/tizen-sdk"));
+        assert_eq!(s.legacy_sdk_path.as_deref(), Some("/home/u/tizen-sdk"));
         let profile = &s.certificate_profiles[0];
         assert_eq!(profile.duids, ["ABCD1234EFGH"]);
         assert_eq!(profile.engine, Engine::Sdk);
+        assert!(
+            profile.is_legacy(),
+            "an SDK profile is kept and marked for transfer"
+        );
         assert!(profile.covers("abcd1234efgh"));
         assert!(
             s.onboarding_done,
@@ -228,6 +231,31 @@ mod tests {
         let back = load(d.path());
         assert!(!back.extra_package_checks, "the choice survives a restart");
         assert_eq!(back.last_update_check, Some(1_700_000_000));
+    }
+
+    #[test]
+    fn settings_of_the_sdk_era_load_without_the_removed_fields() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(
+            file(d.path()),
+            r#"{"theme":"light","engine":"sdk","sdk_path":"C:\\Users\\Иван\\tizen-studio","pending_sdk_install":"C:\\x",
+               "certificate_profiles":[{"name":"Mine","identity":"Me","duids":["A1B2C3D4"],"engine":"builtin"}]}"#,
+        )
+        .unwrap();
+        let s = load(d.path());
+        assert_eq!(s.theme, "light");
+        assert_eq!(
+            s.legacy_sdk_path.as_deref(),
+            Some("C:\\Users\\Иван\\tizen-studio")
+        );
+        assert!(!s.certificate_profiles[0].is_legacy());
+        save(d.path(), &s).unwrap();
+        let text = std::fs::read_to_string(file(d.path())).unwrap();
+        assert!(!text.contains("pending_sdk_install") && !text.contains("\"engine\": \"sdk\","));
+        assert!(
+            text.contains("tizen-studio"),
+            "the old SDK location is kept for certificate transfer"
+        );
     }
 
     #[test]

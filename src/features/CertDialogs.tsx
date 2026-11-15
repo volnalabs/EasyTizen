@@ -77,7 +77,7 @@ export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: {
           <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-[16px] bg-accent-soft text-accent-text">
             <span className="pulse-ring absolute inset-0 rounded-[16px] border-2 border-accent" /><KeyRound size={24} aria-hidden />
           </span>
-          <p className="mx-auto mt-4 max-w-[34ch] font-semibold">{stage ? t(`certStage_${stage}` as Key) : t("certStageSdk")}</p>
+          <p className="mx-auto mt-4 max-w-[34ch] font-semibold">{stage ? t(`certStage_${stage}` as Key) : t("certStageStart")}</p>
           {(stage === "signin" || !stage) && <p className="mx-auto mt-1 max-w-[38ch] text-small text-muted">{t("certReturnHint")}</p>}
           <div className="mx-auto mt-5 max-w-xs"><Progress value={stage ? (["signin", "author", "distributor", "saving"].indexOf(stage) + 1) / 5 : null} label={t("certCreateTitle")} /></div>
           {stage === "signin" && url && <Button size="sm" className="mt-4" onClick={() => void api.openExternal(url)}><ExternalLink size={14} aria-hidden />{t("certOpenAgain")}</Button>}

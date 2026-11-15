@@ -14,7 +14,7 @@ import { useUpdater } from "./features/updates/useUpdater";
 import { I18nProvider, useI18n } from "./hooks/i18n";
 import type { Key } from "./i18n";
 import { api, isDemo } from "./services/api";
-import type { AppInfo, Settings, ToolchainStatus, TvInfo } from "./types";
+import type { AppInfo, Settings, TvInfo } from "./types";
 
 function useResolvedTheme(pref: Settings["theme"]): "light" | "dark" {
   const [sys, setSys] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -42,16 +42,20 @@ function Shell({ info, settings, refresh }: { info: AppInfo; settings: Settings;
   const { t, lang } = useI18n();
   const [page, setPage] = useState<Page>("install");
   const [previous, setPrevious] = useState<Page>("install");
-  const [tool, setTool] = useState<ToolchainStatus | null>(null);
   const [tv, setTv] = useState<TvInfo | null>(null);
+  const [hostIp, setHostIp] = useState<string | null>(info.host_ip);
   const [wizard, setWizard] = useState(!settings.onboarding_done);
   const [busyKeys, setBusyKeys] = useState<string[]>([]);
   const theme = useResolvedTheme(settings.theme);
-  const usesSdk = !info.mobile && settings.engine === "sdk";
   const busy = busyKeys.length > 0;
 
-  const reloadTool = useCallback(() => { if (!info.mobile) void api.toolchainStatus().then(setTool).catch(() => setTool(null)); }, [info.mobile]);
-  useEffect(reloadTool, [reloadTool, settings.sdk_path, settings.engine]);
+  // The phone may have joined another Wi-Fi network while the app was in the background.
+  useEffect(() => {
+    const reload = () => { if (document.visibilityState === "visible") void api.networkInfo().then((n) => setHostIp(n.host_ip)).catch(() => undefined); };
+    document.addEventListener("visibilitychange", reload);
+    window.addEventListener("focus", reload);
+    return () => { document.removeEventListener("visibilitychange", reload); window.removeEventListener("focus", reload); };
+  }, []);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
   useEffect(() => {
@@ -63,9 +67,8 @@ function Shell({ info, settings, refresh }: { info: AppInfo; settings: Settings;
   const updater = useUpdater({ auto: settings.check_updates, busy, onChecked: () => void refresh() });
   const go = useCallback((p: Page) => { setPage((current) => { if (current !== p) setPrevious(current); return p; }); }, []);
 
-  const toolsMissing = usesSdk && !!tool && !(tool.sdk_ready && tool.tv_extension_ready && tool.cli_ready && tool.node !== "missing");
-  const ctx = useMemo<AppCtx>(() => ({ info, settings, refresh, tool, reloadTool, tv, setTv, go, toolsMissing, busy, setBusy, updater }),
-    [info, settings, refresh, tool, reloadTool, tv, go, toolsMissing, busy, setBusy, updater]);
+  const ctx = useMemo<AppCtx>(() => ({ info, settings, refresh, hostIp, tv, setTv, go, busy, setBusy, updater }),
+    [info, settings, refresh, hostIp, tv, go, busy, setBusy, updater]);
 
   return (
     <AppContext.Provider value={ctx}>

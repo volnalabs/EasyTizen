@@ -268,9 +268,10 @@ fn sign_verify_with_xmlsec_and_install_on_emulated_tv() {
         install_wgt(
             Ipv4Addr::LOCALHOST,
             tv.port,
-            &mut bytes.as_slice(),
+            &mut std::io::Cursor::new(&bytes),
             bytes.len() as u64,
             "abcde12345.Demo",
+            Some("abcde12345"),
             true,
             Duration::from_secs(5),
             &CancelToken::new(),

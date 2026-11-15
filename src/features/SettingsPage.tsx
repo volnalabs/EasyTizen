@@ -1,4 +1,4 @@
-import { ClipboardCopy, ExternalLink, Lock, Save, ShieldCheck, ShieldOff } from "lucide-react";
+import { ClipboardCopy, ExternalLink, FolderOpen, Lock, Save, ShieldCheck, ShieldOff } from "lucide-react";
 import { useId, useState } from "react";
 import { useApp } from "../app/context";
 import { Logo } from "../components/Logo";
@@ -6,8 +6,6 @@ import { Button, copyText, Details, Field, Modal, Notice, PageHeader, Section, S
 import { useI18n } from "../hooks/i18n";
 import { api, pickSavePath } from "../services/api";
 import type { Settings } from "../types";
-import { EngineChoice } from "./EngineChoice";
-import { ToolsPanel } from "./Setup";
 import { UpdatesSection } from "./updates/UpdatesSection";
 
 export const REPO_URL = "https://github.com/volnalabs/TV-Deploy";
@@ -83,8 +81,6 @@ export function SettingsPage({ onShowWizard }: { onShowWizard: () => void }) {
         <SecuritySection />
         <UpdatesSection persist={persist} />
 
-        {!info.mobile && <Section title={t("engineTitle")}><EngineChoice /></Section>}
-        {!info.mobile && settings.engine === "sdk" && <Section title={t("toolsTitle")}><ToolsPanel /></Section>}
 
         <Section title={t("connection")}>
           <div className="grid gap-4 sm:max-w-md sm:grid-cols-2">
@@ -103,6 +99,7 @@ export function SettingsPage({ onShowWizard }: { onShowWizard: () => void }) {
               if (!path) return;
               try { await api.saveTextFile(path, await loadReport()); toast("ok", t("diagnosticsSaved")); } catch { toast("err", t("err_io_error")); }
             }}><Save size={14} aria-hidden />{t("diagnosticsSave")}</Button>}
+            {!info.mobile && info.log_dir && <Button size="sm" variant="ghost" onClick={() => void api.openLogFolder().catch(() => toast("err", t("err_io_error")))}><FolderOpen size={14} aria-hidden />{t("diagnosticsLogs")}</Button>}
           </div>
           <Details label={t("diagnosticsShow")} onOpen={() => void loadReport()}>{report ?? "…"}</Details>
         </Section>

@@ -21,11 +21,10 @@ pub mod oauth;
 use crate::sign::identity::{write_p12, IdentityError};
 use thiserror::Error;
 
-pub const AUTHOR_CA_PEM: &str = include_str!(
-    "../../../../resources/samsung-cli/assets/samsung-tv-ca/vd_tizen_dev_author_ca.cer"
-);
+pub const AUTHOR_CA_PEM: &str =
+    include_str!("../../assets/samsung-tv-ca/vd_tizen_dev_author_ca.cer");
 pub const PUBLIC_DISTRIBUTOR_CA_PEM: &str =
-    include_str!("../../../../resources/samsung-cli/assets/samsung-tv-ca/vd_tizen_dev_public2.crt");
+    include_str!("../../assets/samsung-tv-ca/vd_tizen_dev_public2.crt");
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum CaError {
@@ -336,9 +335,10 @@ mod issuance_tests {
         let outcome = crate::sdb::install_wgt(
             std::net::Ipv4Addr::LOCALHOST,
             tv.port,
-            &mut bytes.as_slice(),
+            &mut std::io::Cursor::new(&bytes),
             bytes.len() as u64,
             "abcde12345.Demo",
+            None,
             false,
             std::time::Duration::from_secs(5),
             &CancelToken::new(),

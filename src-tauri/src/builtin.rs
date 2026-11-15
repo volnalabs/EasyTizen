@@ -1,20 +1,21 @@
-//! Built-in engine: EasyTizen's own SDB client, signer and Samsung certificate flow.
-//! Needs no Tizen SDK and no Node.js — this is the engine the Android app runs on.
+//! EasyTizen's engine: its own SDB client, signer and Samsung certificate flow, on every
+//! platform. Needs no Tizen SDK, no Node.js and no download.
 //!
 //! Certificates live in `<app data>/certificates/<profile>/{author,distributor}.p12`,
 //! encrypted with the password the user chose. The password itself is kept only in memory
 //! for the running session.
 
 use crate::api::{
-    fail, remember_device, success, ApiError, ApiResult, CreateCertificateArgs, FoundTv,
+    fail, remember_device, success, ApiError, ApiResult, ConnectOutcome, CreateCertificateArgs,
     ImportCertificateArgs, InstallJob, InstallResult, Outcome, ScanData, TvInfo,
 };
 use crate::settings::{Engine, SavedCertificateProfile};
-use crate::AppState;
+use crate::{applog, AppState};
 use easytizen_core::cancel::CancelToken;
-use easytizen_core::diagnostics;
+use easytizen_core::diagnostics::Diagnosis;
+use easytizen_core::discovery::{self, CheckOptions, DiscoverOptions, FoundTv, TvCheck};
 use easytizen_core::samsung_ca::{self, api::CaClient, oauth::OAuthSession, CaError};
-use easytizen_core::sdb::{self, scan, InstallFailure, InstallStage, InstallVerdict, SdbError};
+use easytizen_core::sdb::{self, InstallFailure, InstallStage, InstallVerdict, SdbError};
 use easytizen_core::sign::{sign_wgt, IdentityError, SignError, SigningIdentity};
 use serde::Serialize;
 use std::net::Ipv4Addr;
@@ -51,6 +52,7 @@ fn sdb_error(e: &SdbError) -> ApiError {
         SdbError::Refused => ApiError::new("tv_port_closed"),
         SdbError::Unreachable => ApiError::new("tv_unreachable"),
         SdbError::NotTizen => ApiError::new("not_a_tv"),
+        SdbError::Closed => ApiError::new("tv_connection_lost"),
         SdbError::SyncFailed(reason) => ApiError::with("upload_failed", reason.clone()),
         other => ApiError::with("tv_rejected", other.to_string()),
     }
@@ -85,6 +87,12 @@ struct ScanProgress {
     fraction: f32,
 }
 
+#[derive(Serialize, Clone)]
+struct ScanFound {
+    op_id: Option<String>,
+    device: FoundTv,
+}
+
 pub async fn scan(
     app: &AppHandle,
     state: &AppState,
@@ -92,22 +100,33 @@ pub async fn scan(
     op_id: Option<String>,
     cancel: CancelToken,
 ) -> ApiResult<Outcome<ScanData>> {
-    let (port, timeout_ms) = {
+    let (port, timeout_ms, saved) = {
         let s = state.settings.lock().unwrap();
-        (s.default_port, s.timeout_ms)
+        let saved: Vec<Ipv4Addr> = s
+            .devices
+            .iter()
+            .filter(|d| d.port == s.default_port)
+            .filter_map(|d| d.ip.parse().ok())
+            .collect();
+        (s.default_port, s.timeout_ms, saved)
     };
-    let Some(prefix) = subnet.or_else(|| scan::primary_local_ip().map(scan::subnet_prefix_of))
-    else {
-        return Ok(fail(diagnostics::Diagnosis::NetworkUnreachable, None));
+    let only_hosts = subnet.map(|prefix| {
+        (1..=254u8)
+            .filter_map(|i| format!("{prefix}.{i}").parse::<Ipv4Addr>().ok())
+            .collect::<Vec<_>>()
+    });
+    let opts = DiscoverOptions {
+        sdb_port: port,
+        connect_timeout: Duration::from_millis(timeout_ms.clamp(400, 1500)),
+        saved_hosts: saved,
+        only_hosts,
+        ..Default::default()
     };
     let app = app.clone();
-    let scanned = prefix.clone();
-    let devices = tauri::async_runtime::spawn_blocking(move || {
-        let last = std::sync::atomic::AtomicU32::new(0);
-        scan::scan_subnet(
-            &prefix,
-            port,
-            Duration::from_millis(timeout_ms.clamp(300, 1500)),
+    let report = tauri::async_runtime::spawn_blocking(move || {
+        let last = std::sync::atomic::AtomicU32::new(u32::MAX);
+        discovery::discover(
+            &opts,
             &cancel,
             &|fraction| {
                 let percent = (fraction * 100.0) as u32;
@@ -121,54 +140,149 @@ pub async fn scan(
                     );
                 }
             },
+            &|device| {
+                let _ = app.emit(
+                    "scan-found",
+                    ScanFound {
+                        op_id: op_id.clone(),
+                        device: device.clone(),
+                    },
+                );
+            },
         )
     })
     .await
     .map_err(|_| ApiError::new("internal"))?;
+    applog::info(
+        "scan",
+        format!(
+            "{} host(s) on [{}]: {} TV(s){}",
+            report.swept_hosts,
+            report.networks.join(", "),
+            report.devices.len(),
+            if report.cancelled { ", cancelled" } else { "" }
+        ),
+    );
+    if report.cancelled {
+        return Ok(fail(Diagnosis::Cancelled, None));
+    }
+    if report.swept_hosts == 0 {
+        return Ok(fail(Diagnosis::NoNetwork, None));
+    }
     Ok(success(ScanData {
-        devices: devices
-            .into_iter()
-            .map(|d| FoundTv {
-                ip: d.ip,
-                port: d.port,
-                name: d.name,
-            })
-            .collect(),
-        subnets: vec![scanned],
+        devices: report.devices,
+        networks: report.networks,
+        interfaces: report.interfaces,
+        swept_hosts: report.swept_hosts,
     }))
 }
 
+fn check_options(state: &AppState, port: u16, read_identity: bool) -> CheckOptions {
+    CheckOptions {
+        sdb_port: port,
+        timeout: Duration::from_millis(state.settings.lock().unwrap().timeout_ms.max(3000)),
+        read_identity,
+        ..Default::default()
+    }
+}
+
+/// Full connection: every readiness condition, then the TV's identity; saved on success.
 pub async fn connect(
     state: &AppState,
     ip: Ipv4Addr,
     port: u16,
+    remember: bool,
     cancel: CancelToken,
-) -> ApiResult<Outcome<TvInfo>> {
-    let timeout = Duration::from_millis(state.settings.lock().unwrap().timeout_ms.max(3000));
-    let identity =
-        tauri::async_runtime::spawn_blocking(move || sdb::query_tv(ip, port, timeout, &cancel))
-            .await
-            .map_err(|_| ApiError::new("internal"))?;
-    match identity {
-        Ok(id) => {
-            let name = remember_device(
-                state,
-                &ip.to_string(),
-                port,
-                id.duid.clone(),
-                id.model.clone(),
+) -> ApiResult<ConnectOutcome> {
+    let opts = check_options(state, port, true);
+    let check = tauri::async_runtime::spawn_blocking(move || {
+        discovery::check_connection(ip, &opts, &cancel)
+    })
+    .await
+    .map_err(|_| ApiError::new("internal"))?;
+    let host_ip = check.host_ip.clone();
+    if !check.sdb_ok {
+        let diagnosis = check.diagnosis.unwrap_or(Diagnosis::Unknown);
+        if diagnosis != Diagnosis::Cancelled {
+            applog::warn(
+                "connect",
+                format!(
+                    "{ip}:{port} {:?} (port {:?}, device API {}, developer mode {:?}, host ip match {:?}) {}",
+                    diagnosis,
+                    check.sdb_port,
+                    check.samsung.is_some(),
+                    check.samsung.as_ref().and_then(|s| s.developer_mode),
+                    check.host_ip_matches,
+                    check.technical.as_deref().unwrap_or("")
+                ),
             );
-            Ok(success(TvInfo {
-                ip: ip.to_string(),
-                port,
-                duid: id.duid,
-                name,
-                model: id.model,
-                host_ip: None,
-            }))
         }
-        Err(e) => Ok(fail(diagnostics::from_sdb_error(&e), Some(e.to_string()))),
+        return Ok(ConnectOutcome {
+            outcome: fail(diagnosis, check.technical.clone()),
+            host_ip,
+            check,
+        });
     }
+    let identity = check.identity.clone();
+    let api_name = check.samsung.as_ref().and_then(|a| a.name.clone());
+    let model = check
+        .samsung
+        .as_ref()
+        .and_then(|a| a.model_name.clone())
+        .or_else(|| identity.as_ref().and_then(|i| i.model.clone()));
+    let tizen = identity.as_ref().and_then(|i| i.platform_version.clone());
+    let duid = identity.as_ref().and_then(|i| i.duid.clone());
+    let name = if remember {
+        remember_device(
+            state,
+            &ip.to_string(),
+            port,
+            api_name.clone(),
+            duid.clone(),
+            model.clone(),
+            tizen.clone(),
+        )
+    } else {
+        api_name.unwrap_or_else(|| format!("Samsung TV {ip}"))
+    };
+    applog::info(
+        "connect",
+        format!(
+            "{ip}:{port} ready (tizen {}, duid {})",
+            tizen.as_deref().unwrap_or("?"),
+            if duid.is_some() {
+                "read"
+            } else {
+                "not readable"
+            }
+        ),
+    );
+    Ok(ConnectOutcome {
+        outcome: success(TvInfo {
+            ip: ip.to_string(),
+            port,
+            duid,
+            name,
+            model,
+            tizen_version: tizen,
+            host_ip: host_ip.clone(),
+        }),
+        host_ip,
+        check,
+    })
+}
+
+/// Availability of a TV without connecting fully or changing anything.
+pub async fn check(
+    state: &AppState,
+    ip: Ipv4Addr,
+    port: u16,
+    cancel: CancelToken,
+) -> ApiResult<TvCheck> {
+    let opts = check_options(state, port, false);
+    tauri::async_runtime::spawn_blocking(move || discovery::check_connection(ip, &opts, &cancel))
+        .await
+        .map_err(|_| ApiError::new("internal"))
 }
 
 pub async fn uninstall(state: &AppState, ip: Ipv4Addr, port: u16, app_id: String) -> ApiResult<()> {
@@ -182,8 +296,8 @@ pub async fn uninstall(state: &AppState, ip: Ipv4Addr, port: u16, app_id: String
     .await
     .map_err(|_| ApiError::new("internal"))?
     .map_err(|e| sdb_error(&e))?;
-    let low = out.to_ascii_lowercase();
-    if low.contains("fail") {
+    if !sdb::uninstall_succeeded(&out) {
+        applog::warn("uninstall", out.clone());
         return Err(ApiError::with("uninstall_failed", out));
     }
     Ok(())
@@ -211,7 +325,6 @@ fn profile_from(
         name.to_string(),
         identity.to_string(),
         distributor.info.duids.clone(),
-        Engine::Builtin,
     );
     profile.expires_at = Some(author.info.not_after.min(distributor.info.not_after));
     profile.imported = imported;
@@ -395,14 +508,130 @@ pub fn remove_certificate(state: &AppState, name: &str) -> ApiResult<()> {
     }
 }
 
+// ---------- certificates made by versions that used the Tizen SDK ----------
+
+/// The SDK's data folder: `TIZEN_SDK_DATA_PATH` from `sdk.info`, else `<sdk>-data` next to it.
+fn sdk_data_dir(sdk: &Path) -> PathBuf {
+    let info = std::fs::read_to_string(sdk.join("sdk.info")).unwrap_or_default();
+    if let Some(value) = info.lines().find_map(|line| {
+        let (key, value) = line.split_once('=')?;
+        (key.trim() == "TIZEN_SDK_DATA_PATH").then(|| value.trim().trim_matches('"').to_string())
+    }) {
+        let path = PathBuf::from(value);
+        if path.is_absolute() {
+            return path;
+        }
+    }
+    let name = sdk
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("tizen-sdk");
+    sdk.parent().unwrap_or(sdk).join(format!("{name}-data"))
+}
+
+/// Folders where an older EasyTizen (through the Tizen SDK) or Tizen Studio kept a Samsung
+/// profile's `author.p12` and `distributor.p12`.
+pub fn legacy_profile_dirs(
+    sdk_path: Option<&Path>,
+    home: Option<&Path>,
+    name: &str,
+) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(sdk) = sdk_path {
+        dirs.push(
+            sdk_data_dir(sdk)
+                .join("keystore")
+                .join("samsung")
+                .join(name),
+        );
+    }
+    if let Some(home) = home {
+        dirs.push(home.join("SamsungCertificate").join(name));
+        for sdk in ["tizen-studio", "tizen-sdk"] {
+            dirs.push(
+                home.join(format!("{sdk}-data"))
+                    .join("keystore")
+                    .join("samsung")
+                    .join(name),
+            );
+        }
+    }
+    dirs
+}
+
+pub async fn transfer_legacy_certificate(
+    state: &AppState,
+    profile: &SavedCertificateProfile,
+    sdk_path: Option<String>,
+    password: String,
+) -> ApiResult<SavedCertificateProfile> {
+    let target = profile_dir(&state.data_dir, &profile.name);
+    let name = profile.name.clone();
+    let identity = profile.identity.clone();
+    let session_password = password.clone();
+    let moved =
+        tauri::async_runtime::spawn_blocking(move || -> ApiResult<SavedCertificateProfile> {
+            let home = std::env::var_os("HOME")
+                .or_else(|| std::env::var_os("USERPROFILE"))
+                .map(PathBuf::from);
+            let source =
+                legacy_profile_dirs(sdk_path.as_deref().map(Path::new), home.as_deref(), &name)
+                    .into_iter()
+                    .find(|d| d.join(AUTHOR_FILE).is_file() && d.join(DISTRIBUTOR_FILE).is_file())
+                    .ok_or_else(|| ApiError::new("legacy_cert_files_missing"))?;
+            let read = |file: &str| -> ApiResult<Vec<u8>> {
+                let path = source.join(file);
+                if std::fs::metadata(&path)
+                    .map(|m| m.len())
+                    .unwrap_or(u64::MAX)
+                    > MAX_P12_BYTES
+                {
+                    return Err(ApiError::new("cert_file_invalid"));
+                }
+                std::fs::read(&path).map_err(|_| ApiError::new("cert_file_invalid"))
+            };
+            let author = SigningIdentity::from_p12(&read(AUTHOR_FILE)?, &password)
+                .map_err(identity_error)?;
+            let distributor = SigningIdentity::from_p12(&read(DISTRIBUTOR_FILE)?, &password)
+                .map_err(identity_error)?;
+            if distributor.info.duids.is_empty() {
+                return Err(ApiError::new("not_a_distributor_certificate"));
+            }
+            // Copies in EasyTizen's own store; the SDK's files are left exactly as they were.
+            write_private(
+                &target.join(AUTHOR_FILE),
+                &author.repack("author", &password).map_err(identity_error)?,
+            )
+            .map_err(|_| ApiError::new("io_error"))?;
+            write_private(
+                &target.join(DISTRIBUTOR_FILE),
+                &distributor
+                    .repack("distributor", &password)
+                    .map_err(identity_error)?,
+            )
+            .map_err(|_| ApiError::new("io_error"))?;
+            let mut profile = profile_from(&name, &identity, &author, &distributor, true);
+            profile.engine = Engine::Builtin;
+            Ok(profile)
+        })
+        .await
+        .map_err(|_| ApiError::new("internal"))??;
+    state
+        .passwords
+        .lock()
+        .unwrap()
+        .insert(moved.name.clone(), session_password);
+    Ok(moved)
+}
+
 // ---------- install ----------
 
 #[derive(Serialize, Clone)]
 struct InstallProgress {
     op_id: Option<String>,
-    /// "signing" | "connecting" | "uploading" | "installing" | "launching"
+    /// "signing" | "connecting" | "uploading" | "installing" | "verifying" | "launching"
     stage: &'static str,
-    /// 0–1 for stages that report progress (signing, uploading); otherwise 0.
+    /// 0–1 for stages that report progress (signing, uploading, installing); otherwise 0.
     fraction: f32,
 }
 
@@ -411,12 +640,13 @@ fn stage_name(stage: InstallStage) -> &'static str {
         InstallStage::Connecting => "connecting",
         InstallStage::Uploading => "uploading",
         InstallStage::Installing => "installing",
+        InstallStage::Verifying => "verifying",
         InstallStage::Launching => "launching",
     }
 }
 
-/// `(launched, profile name + password that proved correct)`.
-type InstallDone = (Option<bool>, Option<(String, String)>);
+/// `(in app list, launched, profile name + password that proved correct)`.
+type InstallDone = (Option<bool>, Option<bool>, Option<(String, String)>);
 
 pub async fn install(
     app: &AppHandle,
@@ -459,6 +689,10 @@ pub async fn install(
     let source = PathBuf::from(&args.package_path);
     let run_after_install = args.run_after_install;
     let duid = args.duid.clone();
+    let package_id = report
+        .package_id
+        .clone()
+        .filter(|p| sdb::is_safe_shell_word(p));
 
     let worker = tauri::async_runtime::spawn_blocking(move || -> ApiResult<InstallDone> {
         let last = std::cell::Cell::new((String::new(), u32::MAX));
@@ -540,6 +774,7 @@ pub async fn install(
                     &mut file,
                     size,
                     &app_id,
+                    package_id.as_deref(),
                     run_after_install,
                     timeout,
                     &cancel,
@@ -550,7 +785,9 @@ pub async fn install(
         cleanup();
         let outcome = outcome?;
         match outcome.verdict {
-            InstallVerdict::Installed => Ok((outcome.launched, verified_password)),
+            InstallVerdict::Installed => {
+                Ok((outcome.in_app_list, outcome.launched, verified_password))
+            }
             InstallVerdict::Failed(kind) => {
                 let code = match kind {
                     InstallFailure::CertificateRejected => "tv_cert_rejected",
@@ -567,7 +804,7 @@ pub async fn install(
     .map_err(|_| ApiError::new("internal"))?;
 
     match worker {
-        Ok((launched, verified)) => {
+        Ok((in_app_list, launched, verified)) => {
             if let Some((name, password)) = verified {
                 state.passwords.lock().unwrap().insert(name, password);
             }
@@ -576,6 +813,7 @@ pub async fn install(
                 app_id: report.app_id,
                 version: report.version,
                 tv_ip: ip.to_string(),
+                in_app_list,
                 launched,
             })
         }
@@ -609,6 +847,22 @@ mod tests {
             );
         }
         assert!(!path.with_extension("tmp").exists());
+    }
+
+    #[test]
+    fn legacy_profile_locations() {
+        let root = tempfile::tempdir().unwrap();
+        let sdk = root.path().join("tizen studio");
+        std::fs::create_dir_all(&sdk).unwrap();
+        let dirs = legacy_profile_dirs(Some(&sdk), Some(root.path()), "Mine");
+        assert_eq!(
+            dirs[0],
+            root.path().join("tizen studio-data/keystore/samsung/Mine")
+        );
+        assert_eq!(dirs[1], root.path().join("SamsungCertificate/Mine"));
+        std::fs::write(sdk.join("sdk.info"), "TIZEN_SDK_DATA_PATH=/data/tz\n").unwrap();
+        let dirs = legacy_profile_dirs(Some(&sdk), None, "Mine");
+        assert_eq!(dirs, [PathBuf::from("/data/tz/keystore/samsung/Mine")]);
     }
 
     #[test]
