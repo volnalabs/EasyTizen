@@ -149,6 +149,16 @@ impl Capability {
     }
 }
 
+/// Largest WRTE payload both sides accept: `min(announced by us, announced by the device)`.
+/// A device that announces 0 (very old firmware) gets the announced value.
+pub fn negotiated_payload(device_max: u32) -> usize {
+    let ours = ANNOUNCED_MAX_PAYLOAD as usize;
+    match device_max as usize {
+        0 => ours,
+        device => device.min(ours).max(256),
+    }
+}
+
 pub struct SdbClient {
     stream: TcpStream,
     /// Largest WRTE payload the device accepts.
@@ -197,7 +207,10 @@ impl SdbClient {
             let msg = client.recv(deadline)?;
             match msg.command {
                 A_CNXN => {
-                    client.max_payload = (msg.arg1 as usize).clamp(1024, SEND_PAYLOAD_CAP);
+                    // sdbd (like adbd) uses the SMALLER of its own maximum and what we
+                    // announced, and drops the whole connection on a larger frame. So never
+                    // send more than we announced, whatever the TV's own maximum is.
+                    client.max_payload = negotiated_payload(msg.arg1);
                     client.banner = String::from_utf8_lossy(&msg.data)
                         .trim_end_matches('\0')
                         .to_string();
@@ -502,6 +515,16 @@ mod tests {
             cap.package_tmp_dir().as_deref(),
             Some("/home/owner/share/tmp/sdk_tools/tmp")
         );
+    }
+
+    #[test]
+    fn payload_is_never_larger_than_what_we_announced() {
+        // A Tizen 4 TV (UE24N4500) announcing a large buffer dropped the connection when the
+        // upload used 32 KB frames: sdbd checks frames against min(host, device).
+        assert_eq!(negotiated_payload(256 * 1024), 4096);
+        assert_eq!(negotiated_payload(4096), 4096);
+        assert_eq!(negotiated_payload(2048), 2048);
+        assert_eq!(negotiated_payload(0), 4096);
     }
 
     #[test]

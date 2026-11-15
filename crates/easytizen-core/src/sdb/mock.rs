@@ -38,6 +38,16 @@ pub struct MockState {
     pub received_bytes: usize,
 }
 
+/// What a current TV's `sdbd` announces as its own maximum payload.
+pub const DEVICE_MAX_PAYLOAD: u32 = 256 * 1024;
+
+thread_local! {
+    /// The payload limit of this connection: the smaller of what the host announced and the
+    /// device's own maximum, as `sdbd` (like `adbd`) negotiates it. A larger frame makes sdbd
+    /// drop the whole connection — which is what a real TV did to EasyTizen 0.9.5.
+    static NEGOTIATED_MAX: std::cell::Cell<usize> = const { std::cell::Cell::new(DEVICE_MAX_PAYLOAD as usize) };
+}
+
 #[derive(Clone)]
 pub struct MockTv {
     pub port: u16,
@@ -93,6 +103,14 @@ impl MockTv {
         stream.read_exact(&mut raw)?;
         let header = decode_header(&raw)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "bad header"))?;
+        if header.data_length as usize > NEGOTIATED_MAX.with(|m| m.get()) {
+            // sdbd: "data length too large" → the transport is closed.
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "frame larger than the negotiated maximum payload",
+            ));
+        }
         let mut data = vec![0u8; header.data_length as usize];
         stream.read_exact(&mut data)?;
         if checksum(&data) != header.data_check {
@@ -111,7 +129,7 @@ impl MockTv {
 
     /// Writes device → host data and waits for the host's OKAY, like a real sdbd.
     fn write_data(stream: &mut TcpStream, dev: u32, host: u32, data: &[u8]) -> std::io::Result<()> {
-        for chunk in data.chunks(ANNOUNCED_MAX_PAYLOAD as usize) {
+        for chunk in data.chunks(NEGOTIATED_MAX.with(|m| m.get())) {
             stream.write_all(&Message::new(A_WRTE, dev, host, chunk.to_vec()).encode())?;
             loop {
                 let reply = Self::read_message(stream)?;
@@ -143,15 +161,18 @@ impl MockTv {
         if self.faults().close_on_connect {
             return Ok(());
         }
+        NEGOTIATED_MAX.with(|m| m.set(DEVICE_MAX_PAYLOAD as usize));
         let hello = Self::read_message(&mut stream)?;
         if hello.command != A_CNXN || !hello.data.starts_with(b"host::") {
             return Ok(());
         }
+        let negotiated = (hello.arg1 as usize).min(DEVICE_MAX_PAYLOAD as usize);
+        NEGOTIATED_MAX.with(|m| m.set(negotiated));
         stream.write_all(
             &Message::new(
                 A_CNXN,
                 SDB_VERSION,
-                ANNOUNCED_MAX_PAYLOAD,
+                DEVICE_MAX_PAYLOAD,
                 b"device::mock-tv\0".to_vec(),
             )
             .encode(),
