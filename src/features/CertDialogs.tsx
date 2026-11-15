@@ -1,31 +1,57 @@
-import { ExternalLink, FileKey, KeyRound, LockKeyhole } from "lucide-react";
+import { ExternalLink, FileArchive, FileKey, KeyRound, LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../app/context";
 import { Button, Details, Field, IconTile, Modal, Notice, Progress, Toggle, useToast } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import type { Key } from "../i18n";
 import { opId, passwordProblem, validProfileName } from "../lib/format";
+import { prefersTizenCertificate } from "../lib/tv";
 import { api, on, pickFile, toApiError } from "../services/api";
-import type { ApiError, CertProgress, CertStage, CertificateProfile } from "../types";
+import type { ApiError, CertKind, CertProgress, CertStage, CertificateProfile } from "../types";
 
-/** Create a Samsung certificate for one or more connected TVs. */
-export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: { preselectDuid?: string | null; onClose: () => void; onCreated: (p: CertificateProfile) => void }) {
+const SAMSUNG_STAGES: CertStage[] = ["signin", "author", "distributor", "saving"];
+const TIZEN_STAGES: CertStage[] = ["download", "author", "saving"];
+
+function uniqueName(base: string, taken: { name: string }[]): string {
+  let name = base;
+  let n = 2;
+  while (taken.some((p) => p.name === name)) name = `${base}-${n++}`;
+  return name;
+}
+
+/**
+ * Create a certificate profile. Two kinds:
+ * - Tizen certificate: the Tizen SDK's own developer certificate, no Samsung account and no DUID — for TVs before Tizen 7;
+ * - Samsung certificate: issued by Samsung after sign-in for specific TVs — needed from Tizen 7 on.
+ * The default follows the TV's Tizen version.
+ */
+export function CreateCertificateDialog({ preselectDuid, tizenVersion, onClose, onCreated }: {
+  preselectDuid?: string | null; tizenVersion?: string | null; onClose: () => void; onCreated: (p: CertificateProfile) => void;
+}) {
   const { t, err } = useI18n();
-  const { settings, refresh, setBusy: markBusy } = useApp();
+  const { settings, refresh, setBusy: markBusy, info } = useApp();
   const toast = useToast();
   const tvs = useMemo(() => settings.devices.filter((d) => !!d.duid), [settings.devices]);
   const [selected, setSelected] = useState<string[]>(() => {
     const first = preselectDuid && tvs.some((d) => d.duid === preselectDuid) ? preselectDuid : tvs[0]?.duid;
     return first ? [first] : [];
   });
+  const knownVersion = tizenVersion ?? settings.devices.find((d) => d.duid && d.duid === preselectDuid)?.tizen_version ?? null;
+  const [kind, setKind] = useState<CertKind>(() => {
+    if (knownVersion) return prefersTizenCertificate(knownVersion) ? "tizen" : "samsung";
+    // No TV yet: the Tizen certificate needs none; otherwise follow the first saved TV.
+    const first = settings.devices[0]?.tizen_version;
+    return tvs.length === 0 || prefersTizenCertificate(first) ? "tizen" : "samsung";
+  });
+  const [packageFile, setPackageFile] = useState<string | null>(null);
   const suggestion = useMemo(() => {
+    if (kind === "tizen") return uniqueName("Tizen", settings.certificate_profiles);
     const tv = tvs.find((d) => d.duid === selected[0]);
-    let base = `EasyTizen-${tv?.ip.split(".").at(-1) ?? "TV"}`;
-    let n = 2;
-    while (settings.certificate_profiles.some((p) => p.name === base)) base = `EasyTizen-${tv?.ip.split(".").at(-1) ?? "TV"}-${n++}`;
-    return base;
-  }, [tvs, selected, settings.certificate_profiles]);
+    return uniqueName(`EasyTizen-${tv?.ip.split(".").at(-1) ?? "TV"}`, settings.certificate_profiles);
+  }, [kind, tvs, selected, settings.certificate_profiles]);
   const [name, setName] = useState(suggestion);
+  const nameEdited = useRef(false);
+  useEffect(() => { if (!nameEdited.current) setName(suggestion); }, [suggestion]);
   const [identity, setIdentity] = useState("EasyTizen User");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -45,7 +71,7 @@ export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: {
   const nameError = touched && !validProfileName(name.trim()) ? t("certInvalidProfile") : null;
   const passwordError = touched && passwordProblem(password) ? t("certPasswordWeak") : null;
   const confirmError = touched && password !== confirm ? t("certPasswordMismatch") : null;
-  const valid = selected.length > 0 && validProfileName(name.trim()) && identity.trim().length >= 2 && !passwordProblem(password) && password === confirm;
+  const valid = (kind === "tizen" || selected.length > 0) && validProfileName(name.trim()) && identity.trim().length >= 2 && !passwordProblem(password) && password === confirm;
 
   const create = async () => {
     setTouched(true);
@@ -54,7 +80,9 @@ export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: {
     op.current = id;
     setBusy(true); setError(null); setStage(null); setUrl(null);
     try {
-      const profile = await api.createCertificate({ profileName: name.trim(), identity: identity.trim(), password, duids: selected }, id);
+      const profile = kind === "tizen"
+        ? await api.createTizenCertificate({ profileName: name.trim(), identity: identity.trim(), password, packageSource: packageFile }, id)
+        : await api.createCertificate({ profileName: name.trim(), identity: identity.trim(), password, duids: selected }, id);
       await refresh();
       toast("ok", t("certCreated", { name: profile.name }));
       onCreated(profile);
@@ -71,20 +99,36 @@ export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: {
     <Modal title={t("certCreateTitle")} onClose={close} wide dismissible={!busy}
       footer={busy
         ? <Button onClick={() => op.current && void api.cancel(op.current)}>{t("cancel")}</Button>
-        : <><Button variant="ghost" onClick={onClose}>{t("cancel")}</Button><Button variant="primary" disabled={tvs.length === 0} onClick={() => void create()}><KeyRound size={16} aria-hidden />{t("certCreateButton")}</Button></>}>
-      {tvs.length === 0 ? <Notice tone="warn">{t("certNeedTv")}</Notice> : busy ? (
+        : <><Button variant="ghost" onClick={onClose}>{t("cancel")}</Button><Button variant="primary" disabled={kind === "samsung" && tvs.length === 0} onClick={() => void create()}><KeyRound size={16} aria-hidden />{t(kind === "tizen" ? "certCreateButtonTizen" : "certCreateButton")}</Button></>}>
+      {busy ? (
         <div className="py-6 text-center" aria-live="polite">
           <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-[16px] bg-accent-soft text-accent-text">
             <span className="pulse-ring absolute inset-0 rounded-[16px] border-2 border-accent" /><KeyRound size={24} aria-hidden />
           </span>
-          <p className="mx-auto mt-4 max-w-[34ch] font-semibold">{stage ? t(`certStage_${stage}` as Key) : t("certStageStart")}</p>
-          {(stage === "signin" || !stage) && <p className="mx-auto mt-1 max-w-[38ch] text-small text-muted">{t("certReturnHint")}</p>}
-          <div className="mx-auto mt-5 max-w-xs"><Progress value={stage ? (["signin", "author", "distributor", "saving"].indexOf(stage) + 1) / 5 : null} label={t("certCreateTitle")} /></div>
+          <p className="mx-auto mt-4 max-w-[34ch] font-semibold">{stage ? t(kind === "tizen" && stage === "author" ? "certStageTizenAuthor" : `certStage_${stage}` as Key) : t("certStageStart")}</p>
+          {kind === "samsung" && (stage === "signin" || !stage) && <p className="mx-auto mt-1 max-w-[38ch] text-small text-muted">{t("certReturnHint")}</p>}
+          <div className="mx-auto mt-5 max-w-xs"><Progress value={stage ? (Math.max(0, (kind === "tizen" ? TIZEN_STAGES : SAMSUNG_STAGES).indexOf(stage === "reading" ? "download" : stage)) + 1) / ((kind === "tizen" ? TIZEN_STAGES : SAMSUNG_STAGES).length + 1) : null} label={t("certCreateTitle")} /></div>
           {stage === "signin" && url && <Button size="sm" className="mt-4" onClick={() => void api.openExternal(url)}><ExternalLink size={14} aria-hidden />{t("certOpenAgain")}</Button>}
         </div>
       ) : (
         <div className="space-y-4">
-          <div>
+          <div role="radiogroup" aria-label={t("certKindLabel")} className="grid gap-2 sm:grid-cols-2">
+            {(["tizen", "samsung"] as const).map((k) => {
+              const on = kind === k;
+              const recommended = knownVersion ? prefersTizenCertificate(knownVersion) === (k === "tizen") : false;
+              return (
+                <button key={k} type="button" role="radio" aria-checked={on} onClick={() => setKind(k)}
+                  className={`flex min-h-11 flex-col items-start gap-0.5 rounded-[10px] border px-3 py-2.5 text-left transition-colors ${on ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-surface-2"}`}>
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold">{t(k === "tizen" ? "certKindTizen" : "certKindSamsung")}
+                    {recommended && <span className="rounded-full bg-ok-soft px-2 py-px text-caption font-medium text-ok">{t("certKindRecommended")}</span>}
+                  </span>
+                  <span className="text-small text-muted">{t(k === "tizen" ? "certKindTizenBody" : "certKindSamsungBody")}</span>
+                </button>
+              );
+            })}
+          </div>
+          {kind === "samsung" && tvs.length === 0 && <Notice tone="warn">{t("certNeedTv")}</Notice>}
+          {kind === "samsung" && tvs.length > 0 && <div>
             <span className="mb-1.5 block text-small font-semibold">{t("certForTvs")}</span>
             <div className="space-y-2">
               {tvs.map((d) => {
@@ -100,15 +144,27 @@ export function CreateCertificateDialog({ preselectDuid, onClose, onCreated }: {
                 );
               })}
             </div>
-          </div>
+          </div>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t("certProfileName")} hint={t("certProfileHint")} error={nameError}><input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" spellCheck={false} aria-invalid={!!nameError} /></Field>
+            <Field label={t("certProfileName")} hint={t("certProfileHint")} error={nameError}><input className="input" value={name} onChange={(e) => { nameEdited.current = true; setName(e.target.value); }} autoComplete="off" spellCheck={false} aria-invalid={!!nameError} /></Field>
             <Field label={t("certIdentity")} hint={t("certIdentityHint")}><input className="input" value={identity} onChange={(e) => setIdentity(e.target.value)} autoComplete="name" /></Field>
             <Field label={t("certPassword")} error={passwordError}><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" aria-invalid={!!passwordError} /></Field>
             <Field label={t("certPasswordConfirm")} error={confirmError}><input className="input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" aria-invalid={!!confirmError} /></Field>
           </div>
           <p className="flex items-start gap-2 text-small text-muted"><LockKeyhole size={15} className="mt-[3px] shrink-0" aria-hidden /><span className="min-w-0">{t("certPasswordHint")}</span></p>
-          <Notice tone="info">{t("certSamsungNote")}</Notice>
+          {kind === "samsung" ? <Notice tone="info">{t("certSamsungNote")}</Notice> : (
+            <Notice tone="info">
+              <p>{t("certTizenNote")}</p>
+              <Details label={t("certTizenOffline")}>
+                <p className="mb-2">{t("certTizenOfflineBody")}</p>
+                <button type="button" onClick={async () => { const p = await pickFile(info.mobile ? undefined : ["zip"]); if (p) setPackageFile(p); }} className="input flex items-center gap-2 text-left">
+                  <FileArchive size={16} className="shrink-0 text-muted" aria-hidden />
+                  <span className={`min-w-0 flex-1 truncate ${packageFile ? "font-medium" : "text-muted"}`} title={packageFile ?? undefined}>{packageFile ? (packageFile.startsWith("content://") ? t("certFileChosen") : packageFile.split(/[\\/]/).pop()) : t("certTizenChooseZip")}</span>
+                </button>
+                {packageFile && <Button size="sm" variant="ghost" className="mt-2" onClick={() => setPackageFile(null)}>{t("certTizenUseDownload")}</Button>}
+              </Details>
+            </Notice>
+          )}
           {error && <Notice tone="err" title={err(error)}>{error.detail && <Details label={t("technicalDetails")}>{error.detail}</Details>}</Notice>}
         </div>
       )}

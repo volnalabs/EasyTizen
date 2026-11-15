@@ -15,6 +15,7 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 | rsa, sha2 | RSA-2048 keys, RSA-SHA512 signatures, digests | MIT / Apache-2.0 |
 | x509-cert | CSR building, certificate parsing | MIT / Apache-2.0 |
 | p12-keystore | reading and writing PKCS#12 keystores | MIT / Apache-2.0 |
+| aes, cbc, md-5 | decrypting the Tizen SDK developer CA key (OpenSSL "traditional" AES-128-CBC PEM) for the Tizen certificate | MIT / Apache-2.0 |
 | getrandom | system randomness for key generation | MIT / Apache-2.0 |
 | ureq (rustls, webpki-roots) | HTTPS to Samsung's CA and GitHub's API | MIT / Apache-2.0 |
 | minisign-verify | verifying update signatures (Android APK) | MIT |
@@ -50,3 +51,9 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 | Samsung VD CA certificates (`vd_tizen_dev_author_ca.cer`, `vd_tizen_dev_public2.crt`, `vd_tizen_dev_partner2.crt`) from Samsung `tizen-agent-skills` @ `1509f7b9…` | `crates/easytizen-core/assets/samsung-tv-ca`, compiled into the core | Apache-2.0 — `LICENSE`, `NOTICE` next to them |
 
 Nothing is fetched at build or run time: the Tizen SDK, Samsung TV Extension, `sdb` and Node.js are not used.
+
+## Files read at run time (not shipped)
+
+| What | Where from | Used for |
+|---|---|---|
+| `tizen-developer-ca.cer`, `tizen-developer-ca-privatekey.pem`, `sdk-public/tizen-distributor-signer.p12` | Samsung's `certificate-generator_0.1.4_ubuntu-64.zip` on download.tizen.org, downloaded only when the user creates a Tizen certificate (or a copy the user picks); each file is checked against a pinned SHA-256 | issuing the user's author certificate and the public distributor signature of a Tizen certificate. The files are not redistributed with EasyTizen; only the user's own two keystores are stored |

@@ -59,6 +59,8 @@ export const api = {
 
   createCertificate: (args: { profileName: string; identity: string; password: string; duids: string[] }, opId: string) =>
     call<CertificateProfile>("create_certificate", { args, opId }),
+  createTizenCertificate: (args: { profileName: string; identity: string; password: string; packageSource: string | null }, opId: string) =>
+    call<CertificateProfile>("create_tizen_certificate", { args, opId }),
   importCertificate: (args: { profileName: string; authorSource: string; distributorSource: string; authorPassword: string; distributorPassword: string }) =>
     call<CertificateProfile>("import_certificate", { args }),
   /** Moves a profile made through the Tizen SDK by an older version into the app's own store. */

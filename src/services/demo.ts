@@ -137,6 +137,17 @@ const handlers: Record<string, (a: Args) => unknown> = {
     settings.certificate_profiles.push(profile);
     return profile;
   },
+  create_tizen_certificate: async (a): Promise<CertificateProfile> => {
+    for (const stage of [a.args.packageSource ? "reading" : "download", "author", "saving"]) {
+      emit("cert-progress", { op_id: a.opId, stage, url: null });
+      await wait(stage === "download" ? 1200 : 500);
+      await guard(a.opId);
+    }
+    if (settings.certificate_profiles.some((p) => p.name === a.args.profileName)) return fail("profile_exists");
+    const profile: CertificateProfile = { name: a.args.profileName, identity: a.args.identity, duids: [], engine: "builtin", created_at: now(), expires_at: Date.UTC(2027, 0, 1) / 1000, imported: false, kind: "tizen" };
+    settings.certificate_profiles.push(profile);
+    return profile;
+  },
   import_certificate: async (a): Promise<CertificateProfile> => {
     await wait(500);
     const profile: CertificateProfile = { name: a.args.profileName, identity: "Imported Author", duids: [TV.duid], engine: "builtin", created_at: now(), expires_at: now() + 86400 * 200, imported: true };

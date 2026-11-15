@@ -93,6 +93,32 @@ export function prefersOriginalSignature(tizenVersion: string | null | undefined
   return alreadySigned && major !== null && major < 7;
 }
 
+/** TVs before Tizen 7 accept the Tizen certificate (no Samsung account); newer ones need Samsung's. */
+export function prefersTizenCertificate(tizenVersion: string | null | undefined): boolean {
+  const major = tizenMajor(tizenVersion);
+  return major !== null && major < 7;
+}
+
+export const isTizenProfile = (p: { kind?: string }) => p.kind === "tizen";
+
+/**
+ * Whether a certificate profile can sign for this TV: a Samsung one must name the TV's DUID and be valid; a Tizen
+ * one works for any TV before Tizen 7 (and is offered when the version is unknown).
+ */
+export function profileFitsTv(
+  p: { engine: string; kind?: string; duids: string[]; expires_at: number | null },
+  tv: { duid: string | null; tizen_version: string | null },
+  now: number = Date.now() / 1000,
+): boolean {
+  if (p.engine !== "builtin") return false;
+  if (isTizenProfile(p)) {
+    const major = tizenMajor(tv.tizen_version);
+    return major === null || major < 7;
+  }
+  const valid = p.expires_at == null || p.expires_at >= now;
+  return valid && !!tv.duid && p.duids.some((d) => d.toLowerCase() === tv.duid!.toLowerCase());
+}
+
 export function ipValue(ip: string): number {
   return ip.split(".").reduce((acc, part) => acc * 256 + (Number(part) || 0), 0);
 }

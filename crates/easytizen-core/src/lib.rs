@@ -14,5 +14,6 @@ pub mod package;
 pub mod samsung_ca;
 pub mod sdb;
 pub mod sign;
+pub mod tizen_cert;
 pub mod update;
 pub mod validate;

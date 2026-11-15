@@ -110,7 +110,7 @@ Fetches the TV's device ID that Samsung needs to issue a certificate.
 <img src="docs/readme/f-cert.svg" width="52" height="52" align="left" alt="">
 
 **Creates certificates**<br>
-Sign in to your Samsung Account in the browser — the certificate for one or several TVs is ready.
+TVs before Tizen 7: a Tizen certificate with no account, in seconds. Tizen 7 and newer: sign in to your Samsung Account in the browser.
 
 </td>
 </tr>
@@ -189,7 +189,7 @@ Downloads and verifies a signed update and applies it on restart. On Android —
 </table>
 
 > [!NOTE]
-> You need a free Samsung Account (for the certificate) and a Samsung Tizen TV with Developer Mode. No ads, no accounts of our own, no data collection — see [privacy](#privacy).
+> You need a Samsung Tizen TV with Developer Mode. TVs with Tizen 7 and newer also need a free Samsung Account (for the certificate); older TVs accept the Tizen certificate, which needs no account. No ads, no accounts of our own, no data collection — see [privacy](#privacy).
 
 <p align="center"><img src="docs/readme/divider.svg" width="100%" height="24" alt=""></p>
 
@@ -274,7 +274,7 @@ Install EasyTizen on your device first, then prepare the TV and run your first i
 |---|---|---|
 | Extra downloads | none | none |
 | Who signs and installs | EasyTizen's built-in engine | EasyTizen's built-in engine |
-| Samsung Account | needed for the certificate | needed for the certificate |
+| Samsung Account | only for TVs with Tizen 7 and newer | only for TVs with Tizen 7 and newer |
 | Network | Wi-Fi, the TV's network | Wi-Fi or cable, the TV's network |
 
 > [!IMPORTANT]
@@ -427,11 +427,17 @@ Drop the file onto the window or click **“Choose file”**. EasyTizen inspects
 
 #### <img src="docs/readme/step-4.svg" width="28" height="28" align="top" alt="Step 4"> Create a certificate
 
-Done once per TV.
+Done once. EasyTizen suggests the right type from the TV's Tizen version:
 
-1. In the “Install” step click **“Create certificate”**.
-2. Tick the TVs it is for, choose a name and a password (at least 8 characters with an uppercase letter, a lowercase letter and a digit). This is the certificate file's password, not your Samsung Account password.
-3. Click **“Sign in with Samsung and create”** — Samsung's sign-in page opens in the browser. Sign in or create a free account, then return to EasyTizen.
+| TV | Certificate | What it takes |
+|---|---|---|
+| **before Tizen 7** (roughly up to 2022 models) | **Tizen certificate** | nothing: no account, not bound to a TV |
+| **Tizen 7 and newer** | **Samsung certificate** | a free Samsung Account; issued for the Device ID (DUID) of specific TVs |
+
+1. In the “Install” step click **“Create certificate”** and check the selected type.
+2. Choose a name and a password (at least 8 characters with an uppercase letter, a lowercase letter and a digit). This is the certificate file's password, not your Samsung Account password. For a Samsung certificate, tick the TVs it is for.
+3. **Tizen certificate:** click **“Create certificate”**. EasyTizen downloads Samsung's official `certificate-generator` package from `download.tizen.org` once (about 4 MB), checks the three files it needs against pinned SHA-256 hashes and creates your own author key, signed by the Tizen SDK's “Tizen Developers CA”. No access to download.tizen.org? Download that zip on another device and choose it in the dialog (“No access to download.tizen.org?”).
+   **Samsung certificate:** click **“Sign in with Samsung and create”** — Samsung's sign-in page opens in the browser. Sign in or create a free account, then return to EasyTizen.
 
 > [!NOTE]
 > Already have a certificate pair from Tizen Studio? Click **“Import existing”** and choose `author.p12`, `distributor.p12` and their passwords. The distributor certificate must have been issued for your TV's DUID.

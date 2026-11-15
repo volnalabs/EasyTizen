@@ -26,6 +26,17 @@ This page separates what is implemented from what has been confirmed, and lists 
 * **Self-update needs the project's update key** (see RELEASING.md); local builds only link to the installer. Android self-update requires a stable signing key.
 * **Product name**: the app is still called EasyTizen and keeps its identifier and release file names, so existing installations update in place.
 
+## Tizen certificate (no Samsung Account)
+
+* **Confirmed on one TV:** Samsung UE24N4500, Tizen 4.0 installed a package signed with the Tizen certificate. Others report the same for Tizen 5.0. TVs with Tizen 7 and newer generally refuse it — EasyTizen offers the Samsung certificate there.
+* **Public privilege level only.** The Tizen SDK's public distributor signer is used. Apps that need partner-level privileges are refused by the TV with this certificate.
+* **The SDK's "Tizen Developers CA" expires on 1 January 2027.** Author certificates are created valid until then. TVs before Tizen 7 accept the SDK's distributor signer although it expired in 2022, so they are expected not to check the dates; this has not been confirmed for author certificates after 2027. EasyTizen does not block a Tizen certificate whose date has passed — it says so and lets the TV decide.
+* **Files come from Samsung, not from EasyTizen.** The developer CA (with the key and password the SDK publishes for this purpose) and the distributor signer are read from Samsung's `certificate-generator` 0.1.4 package on download.tizen.org — the same source Samsung's own Apache-2.0 tools for VS Code use — and each file is checked against a pinned SHA-256. Without access to download.tizen.org the user can choose a downloaded copy.
+
+## `install failed[118012]` with the app already on the TV
+
+Older TVs answer a reinstall over a copy signed by someone else with the same certificate-check code as a rejected signature. EasyTizen then reads the TV's app list: when the app is there, it says "already installed with another signature" and offers to remove the old copy and retry (confirmed on a Tizen 4.0 TV: removing the old version fixed it).
+
 ## Release gate
 
 `1.0.0` must not be published until the hands-on [acceptance checklist](ACCEPTANCE-CHECKLIST.md) is completed on at least one physical Samsung TV with both the desktop and the Android app.
