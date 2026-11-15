@@ -4,7 +4,9 @@
 
 <br><br>
 
-<a href="README.md"><img src="docs/readme/lang-ru-active.svg" width="49%" alt="🇷🇺 Русская версия — вы читаете её"></a>&nbsp;<a href="README.en.md"><img src="docs/readme/lang-en.svg" width="49%" alt="🇬🇧 English version"></a>
+<p align="center"><a href="README.md"><img src="docs/readme/lang-ru-active.svg" width="100%" alt="Русская версия — вы читаете её"></a></p>
+
+<p align="center"><a href="README.en.md"><img src="docs/readme/lang-en.svg" width="100%" alt="English version"></a></p>
 
 <br>
 
@@ -19,65 +21,49 @@
 
 ## <img src="docs/readme/s-download.svg" width="36" height="36" align="top" alt=""> Скачать
 
-**Выберите устройство — кнопка ведёт на актуальную версию EasyTizen.**
+Выберите своё устройство. Каждая кнопка занимает отдельную строку и ведёт на последнюю версию.
 
-<table>
-<tr>
-<td width="50%" valign="top">
+### 📱 Android — телефон или планшет
 
-**📱 Android — телефон или планшет**
+Android 7.0 и новее. Компьютер не нужен.
 
-Android 7.0 и новее. Компьютер для установки не нужен.
-
-<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Android.apk"><img src="docs/readme/d-android-ru.svg" width="100%" alt="Скачать EasyTizen для Android — телефон или планшет"></a>
+<p align="center"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Android.apk"><img src="docs/readme/d-android-ru.svg" width="100%" alt="Скачать EasyTizen для Android — телефон или планшет"></a></p>
 
 Файл: `EasyTizen-Android.apk`
 
-</td>
-<td width="50%" valign="top">
+---
 
-**💻 Windows — компьютер или ноутбук**
+### 💻 Windows — компьютер или ноутбук
 
-Windows 10/11, 64-bit.
+Windows 10 и 11, 64-bit.
 
-<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe"><img src="docs/readme/d-windows-ru.svg" width="100%" alt="Скачать EasyTizen для Windows"></a>
+<p align="center"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe"><img src="docs/readme/d-windows-ru.svg" width="100%" alt="Скачать EasyTizen для Windows"></a></p>
 
 Файл: `EasyTizen-Windows-x64-Setup.exe`
 
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
+---
 
-**🍎 macOS — Mac**
+### 🍎 macOS — Mac
 
-Один файл для Apple silicon и Intel. macOS 10.15 и новее.
+macOS 10.15 и новее. Один файл для Apple silicon и Intel.
 
-<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"><img src="docs/readme/d-mac-ru.svg" width="100%" alt="Скачать EasyTizen для macOS"></a>
+<p align="center"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"><img src="docs/readme/d-mac-ru.svg" width="100%" alt="Скачать EasyTizen для macOS"></a></p>
 
 Файл: `EasyTizen-macOS.app.tar.gz`
 
-</td>
-<td width="50%" valign="top">
+---
 
-**🐧 Linux — компьютер**
+### 🐧 Linux — компьютер
 
 64-bit. Универсальный AppImage для поддерживаемых дистрибутивов.
 
-<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.AppImage"><img src="docs/readme/d-appimage-ru.svg" width="100%" alt="Скачать EasyTizen для Linux"></a>
+<p align="center"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.AppImage"><img src="docs/readme/d-appimage-ru.svg" width="100%" alt="Скачать EasyTizen для Linux"></a></p>
 
 Файл: `EasyTizen-Linux-x64.AppImage`
 
-</td>
-</tr>
-<tr>
-<td colspan="2" align="center">
+---
 
 [Все версии и исходный код →](https://github.com/volnalabs/TV-Deploy/releases)
-
-</td>
-</tr>
-</table>
 
 SHA-256 контрольные суммы доступны на странице каждого [релиза](https://github.com/volnalabs/TV-Deploy/releases).
 
