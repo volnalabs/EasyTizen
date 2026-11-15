@@ -236,6 +236,9 @@ pub fn discover(
 
     let next = AtomicUsize::new(0);
     let done = AtomicUsize::new(0);
+    // Highest count already reported. Workers finish in any order, so reports go through this
+    // lock and never step backwards (the counter alone does not order the callbacks).
+    let reported = Mutex::new(0usize);
     let seen: Mutex<HashSet<Ipv4Addr>> = Mutex::new(HashSet::new());
     let ssdp_tvs: Mutex<HashSet<Ipv4Addr>> = Mutex::new(HashSet::new());
     let found: Mutex<HashMap<Ipv4Addr, FoundTv>> = Mutex::new(HashMap::new());
@@ -301,7 +304,8 @@ pub fn discover(
         let workers = items.len().clamp(1, 128);
         for _ in 0..workers {
             let tx = tx.clone();
-            let (items, next, done, seen, add_source) = (&items, &next, &done, &seen, &add_source);
+            let (items, next, done, reported, seen, add_source) =
+                (&items, &next, &done, &reported, &seen, &add_source);
             scope.spawn(move || loop {
                 let index = next.fetch_add(1, Ordering::SeqCst);
                 if index >= items.len() || cancel.is_cancelled() {
@@ -317,7 +321,11 @@ pub fn discover(
                     }
                 }
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
-                on_progress(0.9 * finished as f32 / items.len() as f32);
+                let mut last = reported.lock().unwrap();
+                if finished > *last {
+                    *last = finished;
+                    on_progress(0.9 * finished as f32 / items.len() as f32);
+                }
             });
         }
         drop(tx);
