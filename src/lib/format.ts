@@ -40,3 +40,18 @@ export function validProfileName(name: string): boolean {
 export function daysLeft(expiresAt: number | null, now = Date.now()): number | null {
   return expiresAt == null ? null : Math.floor((expiresAt * 1000 - now) / 86_400_000);
 }
+
+/** Time of day only ("14:05"). */
+export function formatTime(unixSeconds: number, lang: "en" | "ru"): string {
+  return new Intl.DateTimeFormat(lang === "ru" ? "ru-RU" : "en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(unixSeconds * 1000));
+}
+
+/** Groups history by local calendar day: "today", "yesterday" or the day's date as YYYY-MM-DD. */
+export function dayKey(unixSeconds: number, now: Date = new Date()): string {
+  const d = new Date(unixSeconds * 1000);
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((start(now) - start(d)) / 86_400_000);
+  if (diff === 0) return "today";
+  if (diff === 1) return "yesterday";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

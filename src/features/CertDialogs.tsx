@@ -1,7 +1,7 @@
 import { ExternalLink, FileArchive, FileKey, KeyRound, LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../app/context";
-import { Button, Details, Field, IconTile, Modal, Notice, Progress, Toggle, useToast } from "../components/ui";
+import { Button, DialogCancel, Details, Field, Modal, Notice, Progress, Toggle, useToast } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import type { Key } from "../i18n";
 import { opId, passwordProblem, validProfileName } from "../lib/format";
@@ -99,16 +99,16 @@ export function CreateCertificateDialog({ preselectDuid, tizenVersion, onClose, 
     <Modal title={t("certCreateTitle")} onClose={close} wide dismissible={!busy}
       footer={busy
         ? <Button onClick={() => op.current && void api.cancel(op.current)}>{t("cancel")}</Button>
-        : <><Button variant="ghost" onClick={onClose}>{t("cancel")}</Button><Button variant="primary" disabled={kind === "samsung" && tvs.length === 0} onClick={() => void create()}><KeyRound size={16} aria-hidden />{t(kind === "tizen" ? "certCreateButtonTizen" : "certCreateButton")}</Button></>}>
+        : <><DialogCancel>{t("cancel")}</DialogCancel><Button variant="primary" disabled={kind === "samsung" && tvs.length === 0} onClick={() => void create()} icon={<KeyRound size={16} aria-hidden />}>{t(kind === "tizen" ? "certCreateButtonTizen" : "certCreateButton")}</Button></>}>
       {busy ? (
         <div className="py-6 text-center" aria-live="polite">
           <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-[16px] bg-accent-soft text-accent-text">
-            <span className="pulse-ring absolute inset-0 rounded-[16px] border-2 border-accent" /><KeyRound size={24} aria-hidden />
+            <KeyRound size={24} aria-hidden /><span className="signal absolute -end-1 -top-1 h-3 w-3 rounded-full bg-accent ring-2 ring-surface" aria-hidden />
           </span>
           <p className="mx-auto mt-4 max-w-[34ch] font-semibold">{stage ? t(kind === "tizen" && stage === "author" ? "certStageTizenAuthor" : `certStage_${stage}` as Key) : t("certStageStart")}</p>
           {kind === "samsung" && (stage === "signin" || !stage) && <p className="mx-auto mt-1 max-w-[38ch] text-small text-muted">{t("certReturnHint")}</p>}
           <div className="mx-auto mt-5 max-w-xs"><Progress value={stage ? (Math.max(0, (kind === "tizen" ? TIZEN_STAGES : SAMSUNG_STAGES).indexOf(stage === "reading" ? "download" : stage)) + 1) / ((kind === "tizen" ? TIZEN_STAGES : SAMSUNG_STAGES).length + 1) : null} label={t("certCreateTitle")} /></div>
-          {stage === "signin" && url && <Button size="sm" className="mt-4" onClick={() => void api.openExternal(url)}><ExternalLink size={14} aria-hidden />{t("certOpenAgain")}</Button>}
+          {stage === "signin" && url && <Button size="sm" className="mt-5" onClick={() => void api.openExternal(url)} icon={<ExternalLink size={14} aria-hidden />}>{t("certOpenAgain")}</Button>}
         </div>
       ) : (
         <div className="space-y-4">
@@ -118,7 +118,7 @@ export function CreateCertificateDialog({ preselectDuid, tizenVersion, onClose, 
               const recommended = knownVersion ? prefersTizenCertificate(knownVersion) === (k === "tizen") : false;
               return (
                 <button key={k} type="button" role="radio" aria-checked={on} onClick={() => setKind(k)}
-                  className={`flex min-h-11 flex-col items-start gap-0.5 rounded-[10px] border px-3 py-2.5 text-left transition-colors ${on ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-surface-2"}`}>
+                  className={`flex min-h-11 flex-col items-start gap-1 rounded-control border px-3.5 py-3 text-start transition-[border-color,background-color] duration-150 ${on ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-fill"}`}>
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold">{t(k === "tizen" ? "certKindTizen" : "certKindSamsung")}
                     {recommended && <span className="rounded-full bg-ok-soft px-2 py-px text-caption font-medium text-ok">{t("certKindRecommended")}</span>}
                   </span>
@@ -134,8 +134,8 @@ export function CreateCertificateDialog({ preselectDuid, tizenVersion, onClose, 
               {tvs.map((d) => {
                 const checked = selected.includes(d.duid!);
                 return (
-                  <label key={d.duid} className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-[10px] border px-3 py-2 transition-colors ${checked ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-surface-2"}`}>
-                    <input type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--accent)]" checked={checked} onChange={() => setSelected((s) => (checked ? s.filter((x) => x !== d.duid) : [...s, d.duid!]))} />
+                  <label key={d.duid} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-control border px-3.5 py-2.5 transition-[border-color,background-color] duration-150 ${checked ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-fill"}`}>
+                    <input type="checkbox" className="h-[1.125rem] w-[1.125rem] shrink-0 accent-[var(--accent)]" checked={checked} onChange={() => setSelected((s) => (checked ? s.filter((x) => x !== d.duid) : [...s, d.duid!]))} />
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium break-words">{d.name}</span>
                       <span className="data block text-caption text-muted">{d.ip}</span>
@@ -155,13 +155,13 @@ export function CreateCertificateDialog({ preselectDuid, tizenVersion, onClose, 
           {kind === "samsung" ? <Notice tone="info">{t("certSamsungNote")}</Notice> : (
             <Notice tone="info">
               <p>{t("certTizenNote")}</p>
-              <Details label={t("certTizenOffline")}>
-                <p className="mb-2">{t("certTizenOfflineBody")}</p>
-                <button type="button" onClick={async () => { const p = await pickFile(info.mobile ? undefined : ["zip"]); if (p) setPackageFile(p); }} className="input flex items-center gap-2 text-left">
+              <Details label={t("certTizenOffline")} inline>
+                <p className="mb-2.5">{t("certTizenOfflineBody")}</p>
+                <button type="button" onClick={async () => { const p = await pickFile(info.mobile ? undefined : ["zip"]); if (p) setPackageFile(p); }} className="input flex items-center gap-2.5 text-start">
                   <FileArchive size={16} className="shrink-0 text-muted" aria-hidden />
-                  <span className={`min-w-0 flex-1 truncate ${packageFile ? "font-medium" : "text-muted"}`} title={packageFile ?? undefined}>{packageFile ? (packageFile.startsWith("content://") ? t("certFileChosen") : packageFile.split(/[\\/]/).pop()) : t("certTizenChooseZip")}</span>
+                  <span className={`data min-w-0 flex-1 ${packageFile ? "font-medium" : "text-muted"}`} title={packageFile ?? undefined}>{packageFile ? (packageFile.startsWith("content://") ? t("certFileChosen") : packageFile.split(/[\\/]/).pop()) : t("certTizenChooseZip")}</span>
                 </button>
-                {packageFile && <Button size="sm" variant="ghost" className="mt-2" onClick={() => setPackageFile(null)}>{t("certTizenUseDownload")}</Button>}
+                {packageFile && <Button size="sm" variant="ghost" className="mt-2 -ms-2" onClick={() => setPackageFile(null)}>{t("certTizenUseDownload")}</Button>}
               </Details>
             </Notice>
           )}
@@ -199,17 +199,17 @@ export function ImportCertificateDialog({ onClose, onImported }: { onClose: () =
     finally { setBusy(false); }
   };
   const fileButton = (value: string | null, set: (v: string) => void) => (
-    <button type="button" onClick={() => pick(set)} className="input flex items-center gap-2 text-left">
+    <button type="button" onClick={() => pick(set)} className="input flex items-center gap-2.5 text-start">
       <FileKey size={16} className="shrink-0 text-muted" aria-hidden />
-      <span className={`min-w-0 flex-1 truncate ${value ? "font-medium" : "text-muted"}`} title={value ?? undefined}>{value ? (value.startsWith("content://") ? t("certFileChosen") : value.split(/[\\/]/).pop()) : t("certChooseFile")}</span>
+      <span className={`data min-w-0 flex-1 ${value ? "font-medium" : "text-muted"}`} title={value ?? undefined}>{value ? (value.startsWith("content://") ? t("certFileChosen") : value.split(/[\\/]/).pop()) : t("certChooseFile")}</span>
     </button>
   );
 
   return (
     <Modal title={t("certImportTitle")} onClose={onClose} wide
-      footer={<><Button variant="ghost" onClick={onClose}>{t("cancel")}</Button><Button variant="primary" busy={busy} disabled={!valid} onClick={() => void run()}>{t("certImportButton")}</Button></>}>
+      footer={<><DialogCancel>{t("cancel")}</DialogCancel><Button variant="primary" busy={busy} disabled={!valid} onClick={() => void run()}>{t("certImportButton")}</Button></>}>
       <div className="space-y-4">
-        <div className="flex items-start gap-3"><IconTile size="sm"><FileKey size={17} aria-hidden /></IconTile><p className="min-w-0 flex-1 text-muted">{t("certImportBody")}</p></div>
+        <p className="text-muted">{t("certImportBody")}</p>
         <Field label={t("certProfileName")} hint={t("certProfileHint")} error={!validProfileName(name.trim()) ? t("certInvalidProfile") : null}><input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" spellCheck={false} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("certAuthorFile")}>{fileButton(author, setAuthor)}</Field>

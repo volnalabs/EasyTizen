@@ -49,6 +49,8 @@ function demoCheck(ip: string): TvCheck {
   };
 }
 const now = () => Math.floor(Date.now() / 1000);
+/** The emulated newer release: the next minor version after this build. */
+const NEXT_VERSION = (() => { const [major, minor] = VERSION.split(".").map((n) => Number.parseInt(n, 10) || 0); return `${major}.${minor + 1}.0`; })();
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const settings: Settings = {
@@ -190,10 +192,10 @@ const handlers: Record<string, (a: Args) => unknown> = {
   update_check: async (): Promise<UpdateStatus> => {
     await wait(700);
     settings.last_update_check = now();
-    const latest = updateAvailable ? "1.0.0" : VERSION;
+    const latest = updateAvailable ? NEXT_VERSION : VERSION;
     return {
       current: VERSION, latest, available: updateAvailable,
-      notes: updateAvailable ? "• Redesigned interface for desktop and Android\n• Automatic updates\n• Additional package checks can be turned off in Settings" : null,
+      notes: updateAvailable ? "• Faster TV search on large networks\n• Clearer messages when a TV refuses a package\n• Small interface fixes" : null,
       published_at: new Date(Date.now() - 86400_000).toISOString(), size: android ? 18_400_000 : 48_200_000,
       release_url: `https://github.com/volnalabs/TV-Deploy/releases/tag/v${latest}`, download_url: "https://github.com/volnalabs/TV-Deploy/releases/latest",
       install: android ? "apk" : "self", manual_reason: null, checked_at: now(),
@@ -201,7 +203,7 @@ const handlers: Record<string, (a: Args) => unknown> = {
   },
   update_download: async (a): Promise<UpdateReady> => {
     for (let i = 1; i <= 20; i++) { await wait(80); emit("update-progress", { op_id: a.opId, downloaded: i * 2_400_000, total: 48_000_000 }); }
-    return { version: "1.0.0", apply: android ? "apk" : "restart" };
+    return { version: NEXT_VERSION, apply: android ? "apk" : "restart" };
   },
   update_apply: () => undefined,
   update_open_permission_settings: () => undefined,

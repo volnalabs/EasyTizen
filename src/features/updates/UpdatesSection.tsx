@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowUpCircle, CheckCircle2, Download, ExternalLink, RefreshCw, RotateCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../../app/context";
-import { Button, DataList, Details, Modal, Notice, Progress, Row, Section, Spinner, Toggle } from "../../components/ui";
+import { Button, DataList, DialogCancel, Details, Modal, Notice, Progress, Row, Section, Spinner, Toggle } from "../../components/ui";
 import { useI18n } from "../../hooks/i18n";
 import type { Key } from "../../i18n";
 import { formatBytes, formatDate } from "../../lib/format";
@@ -14,8 +14,8 @@ export function ApplyDialog({ ready, onClose }: { ready: UpdateReady; onClose: (
   const body = ready.apply === "installer" ? t("updateApplyInstaller", { v: ready.version }) : t("updateApplyRestart", { v: ready.version });
   return (
     <Modal title={t("updateApplyTitle")} onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>{t("updateLater")}</Button>
-        <Button variant="primary" disabled={busy} busy={updater.phase === "applying"} onClick={() => void updater.apply()}><RotateCw size={16} aria-hidden />{ready.apply === "installer" ? t("updateInstallRestart") : t("updateRestart")}</Button></>}>
+      footer={<><DialogCancel>{t("updateLater")}</DialogCancel>
+        <Button variant="primary" disabled={busy} busy={updater.phase === "applying"} onClick={() => void updater.apply()} icon={<RotateCw size={16} aria-hidden />}>{ready.apply === "installer" ? t("updateInstallRestart") : t("updateRestart")}</Button></>}>
       <div className="space-y-3">
         <p>{body}</p>
         <p className="text-small text-muted">{t("updateKeepsData")}</p>
@@ -51,15 +51,15 @@ export function UpdatesSection({ persist }: { persist: (patch: Partial<Settings>
         <Row label={t("updatesCurrent")} data>{info.version}</Row>
         <Row label={t("updatesLastCheck")}>{last ? formatDate(last, lang, true) : t("updatesNever")}</Row>
       </DataList>
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+      <div className="mt-3 mb-1 flex flex-wrap items-center gap-x-4 gap-y-3">
         <p role="status" aria-live="polite" className={`flex min-w-0 flex-[1_1_14rem] items-start gap-2 ${state.tone}`}>{state.icon && <span className="mt-0.5">{state.icon}</span>}<span className="min-w-0">{state.text}</span></p>
-        <Button size="sm" busy={phase === "checking"} disabled={phase === "downloading" || phase === "applying"} onClick={() => void updater.check(true)}>
-          {phase !== "checking" && <RefreshCw size={14} aria-hidden />}{t("updatesCheck")}
+        <Button size="sm" busy={phase === "checking"} disabled={phase === "downloading" || phase === "applying"} onClick={() => void updater.check(true)} icon={<RefreshCw size={14} aria-hidden />}>
+          {t("updatesCheck")}
         </Button>
       </div>
 
       {status?.available && (
-        <div className="fade-up mt-4 rounded-[12px] border border-accent-line bg-accent-soft/50 p-4">
+        <div className="fade-up mt-4 rounded-[14px] bg-accent-soft p-4">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <p className="text-emph font-semibold">EasyTizen {status.latest}</p>
             <p className="text-small text-muted">
@@ -79,8 +79,8 @@ export function UpdatesSection({ persist }: { persist: (patch: Partial<Settings>
               <p className="flex items-start gap-2 text-small"><ShieldCheck size={16} className="mt-px shrink-0 text-ok" aria-hidden />{ready.apply === "apk" ? t("updateApkVerified", { v: ready.version }) : ready.apply === "installer" ? t("updateInstallerVerified", { v: ready.version }) : t("updateInstalledRestart", { v: ready.version })}</p>
               {busy && <Notice tone="warn">{t("updateBusy")}</Notice>}
               <div className="flex flex-wrap gap-2">
-                <Button variant="primary" busy={phase === "applying"} disabled={busy} onClick={() => (ready.apply === "apk" ? void updater.apply() : setConfirm(true))}>
-                  <RotateCw size={16} aria-hidden />{ready.apply === "apk" ? t("updateInstallApk") : ready.apply === "installer" ? t("updateInstallRestart") : t("updateRestart")}
+                <Button variant="primary" busy={phase === "applying"} disabled={busy} onClick={() => (ready.apply === "apk" ? void updater.apply() : setConfirm(true))} icon={<RotateCw size={16} aria-hidden />}>
+                  {ready.apply === "apk" ? t("updateInstallApk") : ready.apply === "installer" ? t("updateInstallRestart") : t("updateRestart")}
                 </Button>
                 {updater.error === "update_permission" && <Button onClick={() => void api.updateOpenPermissionSettings()}>{t("updateOpenPermission")}</Button>}
               </div>
@@ -93,15 +93,15 @@ export function UpdatesSection({ persist }: { persist: (patch: Partial<Settings>
               {phase === "error" && updater.error && <Notice tone="err">{err(updater.error)}</Notice>}
               <div className="flex flex-wrap gap-2">
                 {status.install === "manual"
-                  ? <Button variant="primary" onClick={() => void api.openExternal(status.download_url)}><Download size={16} aria-hidden />{t("updateDownload")}</Button>
-                  : <Button variant="primary" onClick={() => void updater.download()}><Download size={16} aria-hidden />{t("updateInstall")}</Button>}
-                <Button onClick={() => void api.openExternal(status.release_url)}><ExternalLink size={16} aria-hidden />{t("updateReleasePage")}</Button>
+                  ? <Button variant="primary" onClick={() => void api.openExternal(status.download_url)} icon={<Download size={16} aria-hidden />}>{t("updateDownload")}</Button>
+                  : <Button variant="primary" onClick={() => void updater.download()} icon={<Download size={16} aria-hidden />}>{t("updateInstall")}</Button>}
+                <Button variant="ghost" onClick={() => void api.openExternal(status.release_url)} icon={<ExternalLink size={16} aria-hidden />}>{t("updateReleasePage")}</Button>
               </div>
             </div>
           )}
         </div>
       )}
-      <p className="mt-4 text-caption text-muted">{info.mobile ? t("updatesHowAndroid") : t("updatesHowDesktop")}</p>
+      <p className="mt-4 mb-1 text-caption text-muted">{info.mobile ? t("updatesHowAndroid") : t("updatesHowDesktop")}</p>
       {confirm && ready && <ApplyDialog ready={ready} onClose={() => setConfirm(false)} />}
     </Section>
   );
