@@ -1,9 +1,9 @@
 name: Build installers
 
-# Builds every installer under its final, published file name:
+# Builds one installer per platform under its final, published file name:
 #   EasyTizen-Android.apk               EasyTizen-Windows-x64-Setup.exe
-#   EasyTizen-macOS-ARM64.dmg           EasyTizen-macOS-Intel.dmg
-#   EasyTizen-Linux-x64.AppImage        EasyTizen-Linux-x64.deb
+#   EasyTizen-macOS.app.tar.gz          EasyTizen-Linux-x64.AppImage
+# (macOS: one universal app for Apple silicon and Intel.)
 # Code signing is used when the corresponding secrets exist and is never faked when they
 # do not — see docs/RELEASING.md.
 
@@ -60,9 +60,9 @@ jobs:
       matrix:
         include:
           - { name: Windows-x64, os: windows-latest, target: "", bundles: nsis }
-          - { name: macOS-ARM64, os: macos-latest, target: aarch64-apple-darwin, bundles: "app,dmg" }
-          - { name: macOS-Intel, os: macos-15-intel, target: x86_64-apple-darwin, bundles: "app,dmg" }
-          - { name: Linux-x64, os: ubuntu-22.04, target: "", bundles: "appimage,deb" }
+          # One universal app (Apple silicon + Intel).
+          - { name: macOS, os: macos-latest, target: universal-apple-darwin, bundles: app }
+          - { name: Linux-x64, os: ubuntu-22.04, target: "", bundles: appimage }
     defaults:
       run:
         shell: bash
@@ -79,7 +79,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
 
@@ -165,25 +165,22 @@ jobs:
           }
           case "${{ matrix.name }}" in
             Windows-x64) collect nsis exe EasyTizen-Windows-x64-Setup.exe ;;
-            macOS-ARM64) collect dmg dmg EasyTizen-macOS-ARM64.dmg ;;
-            macOS-Intel) collect dmg dmg EasyTizen-macOS-Intel.dmg ;;
-            Linux-x64)
-              collect appimage AppImage EasyTizen-Linux-x64.AppImage
-              collect deb deb EasyTizen-Linux-x64.deb ;;
+            Linux-x64) collect appimage AppImage EasyTizen-Linux-x64.AppImage ;;
+            macOS)
+              if [ "${{ needs.signing.outputs.updater }}" = "signed" ]; then
+                collect macos app.tar.gz EasyTizen-macOS.app.tar.gz
+              else
+                # Without the update key the bundler makes no archive: pack the .app the same way.
+                app="$(find target -maxdepth 6 -path '*/release/bundle/macos/*.app' -type d | head -1)"
+                tar -czf out/EasyTizen-macOS.app.tar.gz -C "$(dirname "$app")" "$(basename "$app")"
+              fi ;;
           esac
-          # Signed update artifacts (only when the update key is configured).
+          # Signatures for latest.json (only when the update key is configured); never published.
           if [ "${{ needs.signing.outputs.updater }}" = "signed" ]; then
             case "${{ matrix.name }}" in
               Windows-x64) collect nsis exe.sig EasyTizen-Windows-x64-Setup.exe.sig ;;
-              macOS-ARM64)
-                collect macos app.tar.gz EasyTizen-macOS-ARM64.app.tar.gz
-                collect macos app.tar.gz.sig EasyTizen-macOS-ARM64.app.tar.gz.sig ;;
-              macOS-Intel)
-                collect macos app.tar.gz EasyTizen-macOS-Intel.app.tar.gz
-                collect macos app.tar.gz.sig EasyTizen-macOS-Intel.app.tar.gz.sig ;;
-              Linux-x64)
-                collect appimage AppImage.sig EasyTizen-Linux-x64.AppImage.sig
-                if [ -n "$(find target -path '*/release/bundle/deb/*.deb.sig' -type f)" ]; then collect deb deb.sig EasyTizen-Linux-x64.deb.sig; fi ;;
+              macOS) collect macos app.tar.gz.sig EasyTizen-macOS.app.tar.gz.sig ;;
+              Linux-x64) collect appimage AppImage.sig EasyTizen-Linux-x64.AppImage.sig ;;
             esac
           fi
           ls -la out

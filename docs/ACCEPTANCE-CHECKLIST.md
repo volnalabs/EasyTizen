@@ -49,4 +49,4 @@ Preparation: TV and test device on the same router; note the TV's IP (Settings �
 - [ ] Self-update with a signed release (desktop and Android): found, downloaded, verified, applied after confirmation; never while a TV installation runs; TVs, certificates and settings kept.
 - [ ] Keyboard only: every control reachable, visible focus, dialogs keep focus inside and return it.
 - [ ] Diagnostics report contains no passwords, tokens or full DUIDs; Copy and Save work.
-- [ ] Release workflow publishes exactly six installers plus `SHA256SUMS.txt`; every `releases/latest/download/…` link in the README downloads a file.
+- [ ] Release workflow publishes exactly four installers (APK, Windows `.exe`, macOS `.app.tar.gz`, AppImage) plus `latest.json`; the macOS archive opens to EasyTizen.app on Apple silicon and Intel; every `releases/latest/download/…` link in the README downloads a file.

@@ -29,9 +29,8 @@
     "active": true,
     "targets": [
       "nsis",
-      "dmg",
-      "appimage",
-      "deb"
+      "app",
+      "appimage"
     ],
     "icon": [
       "icons/32x32.png",
@@ -54,11 +53,6 @@
           "Russian"
         ],
         "displayLanguageSelector": false
-      }
-    },
-    "linux": {
-      "deb": {
-        "section": "utils"
       }
     },
     "android": {

@@ -11,9 +11,9 @@ The workflow (`.github/workflows/release.yml`):
 
 1. refuses to start if the version does not match the repository, the tag `vX.Y.Z` already exists, or the changelog section is missing;
 2. runs all checks (`checks.yml`): Rust core on Linux/macOS/Windows, frontend, app backend;
-3. builds every installer (`build.yml`): Windows x64, macOS ARM64, macOS Intel, Linux AppImage + DEB, Android APK (+ AAB as a workflow artifact);
-4. `scripts/release.mjs verify` — all six installers present, plausibly sized, nothing unexpected;
-5. computes SHA-256 (`SHA256SUMS.txt`) and renders the release notes from `.github/release-notes.md`;
+3. builds one installer per platform (`build.yml`): Windows x64, macOS universal (Apple silicon + Intel), Linux AppImage, Android APK (+ AAB as a workflow artifact, never published);
+4. `scripts/release.mjs verify` — all four installers present, plausibly sized, nothing unexpected;
+5. writes `latest.json` (update signatures and the APK's SHA-256), renders the release notes with the SHA-256 table from `.github/release-notes.md` and removes the `.sig` files;
 6. creates the tag and the GitHub Release and uploads the files.
 
 If any check or any platform build fails, step 6 never runs: **no partial release is published.**
@@ -23,14 +23,12 @@ Published file names (do not rename — README links, the update check and relea
 ```
 EasyTizen-Android.apk
 EasyTizen-Windows-x64-Setup.exe
-EasyTizen-macOS-ARM64.dmg
-EasyTizen-macOS-Intel.dmg
+EasyTizen-macOS.app.tar.gz
 EasyTizen-Linux-x64.AppImage
-EasyTizen-Linux-x64.deb
-SHA256SUMS.txt
+latest.json
 ```
 
-With the update key configured, the release also carries the signed update artifacts and `latest.json` (see below).
+That is the whole release: one file per platform plus `latest.json`, the service file the in-app updater reads. Signatures are inside `latest.json`, not separate files. The macOS `.app.tar.gz` is both the download and the self-update package. Installed 0.9.x apps keep updating through `latest.json` on desktop; 0.9.x `.deb` installs and 0.9.x Android (which looked for `SHA256SUMS.txt` and `.apk.sig`) are offered the manual download once.
 
 Permanent links: `https://github.com/volnalabs/TV-Deploy/releases/latest/download/<file>`.
 
@@ -90,7 +88,7 @@ npx tauri signer generate -w easytizen-updater.key
 | Secret | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | its password |
 | **Variable** (not secret) | `EASYTIZEN_UPDATER_PUBKEY` | contents of `easytizen-updater.key.pub` |
 
-With all three, the build workflow compiles the public key into every app, creates signed updater artifacts (`EasyTizen-Windows-x64-Setup.exe.sig`, `EasyTizen-macOS-*.app.tar.gz` + `.sig`, `EasyTizen-Linux-x64.AppImage.sig`, `.deb.sig` when the bundler produces it) and signs the APK (`EasyTizen-Android.apk.sig`). The release job writes `latest.json` (read by the app from `releases/latest/download/latest.json`) and lists every file in `SHA256SUMS.txt`; the Android updater checks the APK against that list.
+With all three, the build workflow compiles the public key into every app, signs the installers for in-app updates (`.sig` next to the Windows installer, the macOS `.app.tar.gz` and the AppImage) and the APK. The release job writes all signatures and the APK's SHA-256 into `latest.json` (read by the app from `releases/latest/download/latest.json`) and publishes no separate `.sig` files; the Android updater checks the APK against the SHA-256 and signature there.
 
 Without the key nothing is faked: the apps are built without a public key, show new releases and link to the installer, and `release.mjs verify` refuses update artifacts that appear without a signed build. Android updates additionally require the stable Android signing key above — Android refuses an update signed differently from the installed app. **The updater path has not yet run with a real key in CI.**
 
@@ -98,7 +96,7 @@ Without the key nothing is faked: the apps are built without a public key, show 
 
 ```sh
 node scripts/release.mjs check-version 1.0.0
-node scripts/release.mjs verify <folder with the six installers>
+node scripts/release.mjs verify <folder with the four installers>
 node scripts/release.mjs notes <folder> 1.0.0 notes.md
 node scripts/readme-assets.mjs      # regenerate README artwork
 node scripts/release.mjs updater-manifest <folder> 1.0.0   # latest.json from the .sig files

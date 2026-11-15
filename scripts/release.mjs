@@ -3,35 +3,34 @@
 //
 //   node scripts/release.mjs check-version <version>      versions in the repo match <version>
 //   node scripts/release.mjs verify <dir>                 every expected installer is present
-//   node scripts/release.mjs notes <dir> <version> <out>  SHA256SUMS.txt + release notes
-//   node scripts/release.mjs updater-manifest <dir> <version>   latest.json for in-app updates
+//   node scripts/release.mjs updater-manifest <dir> <version>   latest.json (signatures, APK SHA-256)
+//   node scripts/release.mjs notes <dir> <version> <out>  release notes; removes the .sig files
+//
+// A release contains exactly four installers (Android, Windows, macOS, Linux) and latest.json.
 //
 // The file names below are the single source of truth for README links, the update check
 // (crates/easytizen-core/src/update.rs) and the release page.
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+/** What a release page shows: one installer per platform, and nothing else besides latest.json. */
 export const ASSETS = [
   { file: "EasyTizen-Android.apk", minBytes: 3_000_000 },
-  { file: "EasyTizen-Windows-x64-Setup.exe", minBytes: 5_000_000 },
-  { file: "EasyTizen-macOS-ARM64.dmg", minBytes: 5_000_000 },
-  { file: "EasyTizen-macOS-Intel.dmg", minBytes: 5_000_000 },
+  { file: "EasyTizen-Windows-x64-Setup.exe", minBytes: 2_000_000 },
+  // One universal app for Apple silicon and Intel; also what the macOS self-update installs.
+  { file: "EasyTizen-macOS.app.tar.gz", minBytes: 3_000_000 },
   { file: "EasyTizen-Linux-x64.AppImage", minBytes: 5_000_000 },
-  { file: "EasyTizen-Linux-x64.deb", minBytes: 5_000_000 },
 ];
 
-/** Signed update artifacts, present only when CI has the project's update-signing key. The app
- *  downloads them through latest.json (src-tauri/src/updates.rs); people use the installers above. */
-export const UPDATER_ASSETS = [
-  { file: "EasyTizen-Windows-x64-Setup.exe.sig", target: ["windows-x86_64"], artifact: "EasyTizen-Windows-x64-Setup.exe" },
-  { file: "EasyTizen-macOS-ARM64.app.tar.gz", minBytes: 5_000_000 },
-  { file: "EasyTizen-macOS-ARM64.app.tar.gz.sig", target: ["darwin-aarch64"], artifact: "EasyTizen-macOS-ARM64.app.tar.gz" },
-  { file: "EasyTizen-macOS-Intel.app.tar.gz", minBytes: 5_000_000 },
-  { file: "EasyTizen-macOS-Intel.app.tar.gz.sig", target: ["darwin-x86_64"], artifact: "EasyTizen-macOS-Intel.app.tar.gz" },
+/** Minisign signatures made by CI when it has the project's update-signing key. They are read
+ *  into latest.json and are NOT published as separate files. `target`: the Tauri updater
+ *  platform keys the installer serves (installed 0.9.x apps look these keys up too). */
+export const SIGNATURES = [
+  { file: "EasyTizen-Windows-x64-Setup.exe.sig", target: ["windows-x86_64", "windows-x86_64-nsis"], artifact: "EasyTizen-Windows-x64-Setup.exe" },
+  { file: "EasyTizen-macOS.app.tar.gz.sig", target: ["darwin-aarch64", "darwin-x86_64", "darwin-aarch64-app", "darwin-x86_64-app"], artifact: "EasyTizen-macOS.app.tar.gz" },
   { file: "EasyTizen-Linux-x64.AppImage.sig", target: ["linux-x86_64", "linux-x86_64-appimage"], artifact: "EasyTizen-Linux-x64.AppImage" },
-  { file: "EasyTizen-Linux-x64.deb.sig", target: ["linux-x86_64-deb"], artifact: "EasyTizen-Linux-x64.deb", optional: true },
-  { file: "EasyTizen-Android.apk.sig" },
+  { file: "EasyTizen-Android.apk.sig", artifact: "EasyTizen-Android.apk" },
 ];
 export const MANIFEST = "latest.json";
 const DOWNLOAD = "https://github.com/volnalabs/TV-Deploy/releases/download";
@@ -57,9 +56,9 @@ export function checkVersion(version, root = ".") {
     .map(([file, v]) => `${file} declares ${v}, expected ${wanted}`);
 }
 
-/** Problems with the collected installers: missing, suspiciously small or unexpected files.
- *  `updater`: the build was signed for in-app updates, so every update artifact must be there
- *  too; without it, none may be. */
+/** Problems with the collected files: missing, suspiciously small or unexpected ones.
+ *  `updater`: the build was signed for in-app updates, so every signature must be there too;
+ *  without it, none may be. */
 export function verifyAssets(dir, { updater = false } = {}) {
   const problems = [];
   const present = existsSync(dir) ? readdirSync(dir) : [];
@@ -67,26 +66,37 @@ export function verifyAssets(dir, { updater = false } = {}) {
     if (!present.includes(file)) problems.push(`missing: ${file}`);
     else if (statSync(join(dir, file)).size < minBytes) problems.push(`too small to be a real installer: ${file}`);
   }
-  for (const { file, minBytes = 50, optional } of UPDATER_ASSETS) {
+  for (const { file } of SIGNATURES) {
     const has = present.includes(file);
-    if (updater && !has && !optional) problems.push(`missing update artifact: ${file}`);
-    else if (!updater && has) problems.push(`update artifact without a signed build: ${file}`);
-    else if (has && statSync(join(dir, file)).size < minBytes) problems.push(`too small: ${file}`);
+    if (updater && !has) problems.push(`missing signature: ${file}`);
+    else if (!updater && has) problems.push(`signature without a signed build: ${file}`);
+    else if (has && statSync(join(dir, file)).size < 50) problems.push(`too small: ${file}`);
   }
-  const known = new Set([...ASSETS, ...UPDATER_ASSETS].map((a) => a.file).concat("SHA256SUMS.txt", MANIFEST));
+  const known = new Set([...ASSETS, ...SIGNATURES].map((a) => a.file).concat(MANIFEST));
   for (const file of present) if (!known.has(file)) problems.push(`unexpected file: ${file}`);
   return problems;
 }
 
-/** latest.json for the Tauri updater: each platform's artifact URL and minisign signature. */
+/** latest.json: the Tauri updater's platforms (artifact URL + minisign signature) and the
+ *  Android APK's SHA-256 and signature, which the Android app checks before installing. */
 export function updaterManifest(dir, version, { notes = "", pubDate = new Date().toISOString() } = {}) {
   const platforms = {};
-  for (const { file, target, artifact } of UPDATER_ASSETS) {
-    if (!target || !existsSync(join(dir, file))) continue;
-    const signature = readFileSync(join(dir, file), "utf8").trim();
+  const signatureOf = (file) => (existsSync(join(dir, file)) ? readFileSync(join(dir, file), "utf8").trim() : null);
+  for (const { file, target, artifact } of SIGNATURES) {
+    const signature = signatureOf(file);
+    if (!target || !signature) continue;
     for (const key of target) platforms[key] = { signature, url: `${DOWNLOAD}/v${version}/${artifact}` };
   }
-  return { version, notes, pub_date: pubDate, platforms };
+  const apk = "EasyTizen-Android.apk";
+  const android = { url: `${DOWNLOAD}/v${version}/${apk}`, sha256: sha256Of(join(dir, apk)) };
+  const apkSignature = signatureOf(`${apk}.sig`);
+  if (apkSignature) android.signature = apkSignature;
+  return { version, notes, pub_date: pubDate, platforms, android };
+}
+
+/** Files that go on the release page: the installers and latest.json (signatures are inside it). */
+export function publishedFiles(dir) {
+  return readdirSync(dir).filter((f) => !f.endsWith(".sig")).sort();
 }
 
 export function sha256Of(path) {
@@ -142,22 +152,19 @@ function main(argv) {
     const problems = verifyAssets(dir, { updater: process.env.SIGNING_UPDATER === "signed" });
     if (!version || problems.length) { console.error(["cannot write notes", ...problems].join("\n")); process.exit(1); }
     const sums = ASSETS.map(({ file }) => ({ file, sha: sha256Of(join(dir, file)) }));
-    // Every published file is listed in SHA256SUMS.txt (the Android updater checks the APK against it);
-    // the notes table shows the installers people download.
-    const all = readdirSync(dir).filter((f) => f !== "SHA256SUMS.txt").sort().map((file) => ({ file, sha: sha256Of(join(dir, file)) }));
-    writeFileSync(join(dir, "SHA256SUMS.txt"), all.map(({ file, sha }) => `${sha}  ${file}`).join("\n") + "\n");
+    // Signatures live in latest.json; the release page shows only the installers and latest.json.
+    for (const f of readdirSync(dir)) if (f.endsWith(".sig")) unlinkSync(join(dir, f));
     const changes = changelogSection(readFileSync("CHANGELOG.md", "utf8"), version);
     if (!changes) { console.error(`CHANGELOG.md has no section for ${version}`); process.exit(1); }
     const signing = { android: process.env.SIGNING_ANDROID || "temporary", windows: process.env.SIGNING_WINDOWS || "unsigned", macos: process.env.SIGNING_MACOS || "adhoc", updater: process.env.SIGNING_UPDATER || "none" };
     writeFileSync(out, renderNotes({ template: readFileSync(".github/release-notes.md", "utf8"), version, changes, sums, signing }));
-    console.log(`wrote ${out} and SHA256SUMS.txt`);
+    console.log(`wrote ${out}; publishing ${publishedFiles(dir).join(", ")}`);
   } else if (command === "updater-manifest") {
     const [dir, rawVersion] = args;
     const version = parseVersion(rawVersion);
     const changes = version && changelogSection(readFileSync("CHANGELOG.md", "utf8"), version);
     if (!version || !changes) { console.error("updater-manifest needs a released version with a CHANGELOG section"); process.exit(1); }
     const manifest = updaterManifest(dir, version, { notes: changes });
-    if (Object.keys(manifest.platforms).length === 0) { console.error("no signed update artifacts found"); process.exit(1); }
     writeFileSync(join(dir, MANIFEST), JSON.stringify(manifest, null, 2) + "\n");
     console.log(`wrote ${MANIFEST} for ${Object.keys(manifest.platforms).join(", ")}`);
   } else {
