@@ -15,6 +15,71 @@
 
 **[Download](#download)** &nbsp;·&nbsp; [Features](#features) &nbsp;·&nbsp; [Screenshots](#look) &nbsp;·&nbsp; **[Installation](#install)** &nbsp;·&nbsp; [Android](#android) &nbsp;·&nbsp; [Windows](#windows) &nbsp;·&nbsp; [macOS](#macos) &nbsp;·&nbsp; [Linux](#linux) &nbsp;·&nbsp; [Samsung TV](#samsung-tv) &nbsp;·&nbsp; [FAQ](#faq) &nbsp;·&nbsp; [For developers](#dev)
 
+<a name="download"></a>
+
+## <img src="docs/readme/s-download.svg" width="36" height="36" align="top" alt=""> Download
+
+**Choose your device — each button opens the latest EasyTizen release.**
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**📱 Android — phone or tablet**
+
+Android 7.0 or newer. No computer needed.
+
+<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Android.apk"><img src="docs/readme/d-android-en.svg" width="100%" alt="Download EasyTizen for Android — phone or tablet"></a>
+
+File: `EasyTizen-Android.apk`
+
+</td>
+<td width="50%" valign="top">
+
+**💻 Windows — PC or laptop**
+
+Windows 10/11, 64-bit.
+
+<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe"><img src="docs/readme/d-windows-en.svg" width="100%" alt="Download EasyTizen for Windows"></a>
+
+File: `EasyTizen-Windows-x64-Setup.exe`
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**🍎 macOS — Mac**
+
+One download for Apple silicon and Intel. macOS 10.15 or newer.
+
+<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"><img src="docs/readme/d-mac-en.svg" width="100%" alt="Download EasyTizen for macOS"></a>
+
+File: `EasyTizen-macOS.app.tar.gz`
+
+</td>
+<td width="50%" valign="top">
+
+**🐧 Linux — PC**
+
+64-bit. Universal AppImage for supported distributions.
+
+<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.AppImage"><img src="docs/readme/d-appimage-en.svg" width="100%" alt="Download EasyTizen for Linux"></a>
+
+File: `EasyTizen-Linux-x64.AppImage`
+
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
+
+[All versions and source code →](https://github.com/volnalabs/TV-Deploy/releases)
+
+</td>
+</tr>
+</table>
+
+SHA-256 checksums are available on every [release](https://github.com/volnalabs/TV-Deploy/releases) page.
 
 <br>
 
@@ -30,28 +95,6 @@
 EasyTizen works right after installation: **no Tizen SDK, no Tizen Studio, no Node.js or Python, no 15 GB download.** TV discovery, Samsung certificates, signing and `.wgt` installation are done by its own built-in engine — the same on Windows, macOS, Linux and Android.
 
 EasyTizen is an independent open-source tool. It ships no TV apps and downloads none for you: you always choose the `.wgt` file yourself.
-
-<p align="center"><img src="docs/readme/divider.svg" width="100%" height="24" alt=""></p>
-
-<a name="download"></a>
-
-## <img src="docs/readme/s-download.svg" width="36" height="36" align="top" alt=""> Download
-
-<table>
-<tr>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Android.apk"><img src="docs/readme/d-android-en.svg" width="100%" alt="EasyTizen-Android.apk — Android"></a></td>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe"><img src="docs/readme/d-windows-en.svg" width="100%" alt="EasyTizen-Windows-x64-Setup.exe — Windows"></a></td>
-</tr>
-<tr>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"><img src="docs/readme/d-mac-en.svg" width="100%" alt="EasyTizen-macOS.app.tar.gz — macOS (Apple silicon and Intel)"></a></td>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.AppImage"><img src="docs/readme/d-appimage-en.svg" width="100%" alt="EasyTizen-Linux-x64.AppImage — Linux"></a></td>
-</tr>
-<tr>
-<td colspan="2"><a href="https://github.com/volnalabs/TV-Deploy/releases"><img src="docs/readme/p-all-en.svg" width="50%" alt="All versions and source code"></a></td>
-</tr>
-</table>
-
-The links always point at the latest version. Not sure which one to take? See [Installation](#install). SHA-256 checksums are on every [release](https://github.com/volnalabs/TV-Deploy/releases) page.
 
 <p align="center"><img src="docs/readme/divider.svg" width="100%" height="24" alt=""></p>
 
@@ -235,22 +278,28 @@ Downloads and verifies a signed update and applies it on restart. On Android —
 
 <table>
 <tr>
-<td width="25%" valign="top"><img src="docs/img/en/android-welcome.png" alt="First launch"><br><sub><b>First launch</b></sub></td>
-<td width="25%" valign="top"><img src="docs/img/en/android-home.png" alt="Home"><br><sub><b>Home</b></sub></td>
-<td width="25%" valign="top"><img src="docs/img/en/android-find.png" alt="Finding a TV"><br><sub><b>Finding the TV</b></sub></td>
-<td width="25%" valign="top"><img src="docs/img/en/android-connected.png" alt="Connected"><br><sub><b>Connected</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-welcome.png" alt="First launch"><br><sub><b>First launch</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-home.png" alt="Home"><br><sub><b>Home</b></sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="docs/img/en/android-package.png" alt="WGT chosen"><br><sub><b>File chosen</b></sub></td>
-<td valign="top"><img src="docs/img/en/android-check.png" alt="Package check"><br><sub><b>Package check</b></sub></td>
-<td valign="top"><img src="docs/img/en/android-progress.png" alt="Installing"><br><sub><b>Progress</b></sub></td>
-<td valign="top"><img src="docs/img/en/android-success.png" alt="Installed"><br><sub><b>Installed</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-find.png" alt="Finding a TV"><br><sub><b>Finding the TV</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-connected.png" alt="Connected"><br><sub><b>Connected</b></sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="docs/img/en/android-settings.png" alt="Settings"><br><sub><b>Settings</b></sub></td>
-<td valign="top"><img src="docs/img/en/android-updates.png" alt="Updates"><br><sub><b>Updates</b></sub></td>
-<td valign="top"><img src="docs/img/en/android-security.png" alt="Security"><br><sub><b>Security check</b></sub></td>
-<td valign="top"><img src="docs/img/en/android-devmode.png" alt="Developer Mode"><br><sub><b>TV guide</b> with the phone's address</sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-package.png" alt="WGT chosen"><br><sub><b>File chosen</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-check.png" alt="Package check"><br><sub><b>Package check</b></sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/img/en/android-progress.png" alt="Installing"><br><sub><b>Progress</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-success.png" alt="Installed"><br><sub><b>Installed</b></sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/img/en/android-settings.png" alt="Settings"><br><sub><b>Settings</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-updates.png" alt="Updates"><br><sub><b>Updates</b></sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/img/en/android-security.png" alt="Security"><br><sub><b>Security check</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/en/android-devmode.png" alt="Developer Mode"><br><sub><b>TV guide</b> with the phone's address</sub></td>
 </tr>
 </table>
 
