@@ -2,31 +2,36 @@
 //! The UI turns each key into plain-language text and a list of things to check.
 
 use crate::connectivity::Probe;
-use crate::samsung::envelope::Envelope;
-use crate::samsung::runner::RunError;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Diagnosis {
-    /// Tizen SDK / sdb not found at the configured location.
-    ToolsMissing,
-    NodeProblem,
-    NotEnoughDiskSpace,
+    /// This computer or phone has no usable local network (Wi-Fi off, only mobile data, cable
+    /// unplugged).
+    NoNetwork,
     /// Nothing answered at the TV's address.
     TvUnreachable,
-    /// TV answered but SDB port is closed.
+    /// Nothing answered and the address is outside every local network of this device.
+    OtherNetwork,
+    /// The TV itself reports that Developer Mode is off (Samsung's own device API).
+    DevModeOff,
+    /// The TV reports Developer Mode on, but with a different Host PC IP than this device's.
+    HostIpMismatch,
+    /// TV answered but the SDB port is closed. Developer Mode is off or the Host PC IP is
+    /// wrong; which one cannot be told without the TV's device API.
     PortClosed,
-    /// Computer has no route to the address.
+    /// The TV accepted the connection and closed it at once — what TVs do when the Host PC IP
+    /// set in Developer Mode is another device's.
+    ConnectionDropped,
+    /// This device has no route to the address.
     NetworkUnreachable,
-    /// sdb said the device is not there / rejected the connection after TCP succeeded.
+    /// The TV answered with something that is not a valid SDB conversation.
     ConnectionRejected,
     OperationTimedOut,
     Cancelled,
     /// The address answered like an Android (ADB) device, not a Samsung TV.
     NotATv,
-    /// Samsung CLI crashed or printed nothing parseable.
-    CliFailure,
     Unknown,
 }
 
@@ -40,7 +45,7 @@ pub fn from_probe(p: Probe) -> Option<Diagnosis> {
     }
 }
 
-/// Explains a failure of the built-in SDB engine.
+/// Explains a failure of the SDB client.
 pub fn from_sdb_error(e: &crate::sdb::SdbError) -> Diagnosis {
     use crate::sdb::SdbError::*;
     match e {
@@ -49,75 +54,12 @@ pub fn from_sdb_error(e: &crate::sdb::SdbError) -> Diagnosis {
         Unreachable => Diagnosis::NetworkUnreachable,
         NotTizen => Diagnosis::NotATv,
         Cancelled => Diagnosis::Cancelled,
+        Closed => Diagnosis::ConnectionDropped,
         Io(_) | Protocol(_) | ServiceRefused(_) | SyncFailed(_) => Diagnosis::ConnectionRejected,
     }
 }
 
-pub fn from_run_error(e: &RunError) -> Diagnosis {
-    match e {
-        RunError::Timeout(_) => Diagnosis::OperationTimedOut,
-        RunError::Cancelled => Diagnosis::Cancelled,
-        RunError::Spawn(_) | RunError::ScriptMissing => Diagnosis::NodeProblem,
-    }
-}
-
-pub fn from_envelope(env: &Envelope) -> Option<Diagnosis> {
-    if env.is_success() {
-        return None;
-    }
-    let cat = env
-        .errors
-        .first()
-        .map(|e| e.category())
-        .unwrap_or("unknown_error");
-    Some(match cat {
-        "sdk_path_not_set"
-        | "sdk_path_invalid"
-        | "sdk_path_not_accessible"
-        | "install_required"
-        | "dependency_missing" => Diagnosis::ToolsMissing,
-        "node_not_found"
-        | "node_version_unsupported"
-        | "runner_not_found"
-        | "runner_failed"
-        | "script_not_found" => Diagnosis::NodeProblem,
-        "insufficient_disk_space" => Diagnosis::NotEnoughDiskSpace,
-        "device_not_found" | "multiple_devices" => Diagnosis::ConnectionRejected,
-        "execution_error" => {
-            // cert-manager legacy shape wraps the underlying message; classify by text.
-            let msg = env
-                .errors
-                .first()
-                .and_then(|e| e.message.as_deref())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            if msg.contains("sdb not found") || msg.contains("sdb not available") {
-                Diagnosis::ToolsMissing
-            } else if msg.contains("timed out") || msg.contains("timeout") {
-                Diagnosis::OperationTimedOut
-            } else {
-                Diagnosis::Unknown
-            }
-        }
-        _ => Diagnosis::Unknown,
-    })
-}
-
-/// A message safe to show in an expandable "technical details" area. Strips the user's home
-/// directory and anything resembling a secret.
-pub fn technical_detail(env: &Envelope, home: Option<&str>) -> String {
-    let mut s = env
-        .errors
-        .iter()
-        .filter_map(|e| e.message.clone())
-        .collect::<Vec<_>>()
-        .join("\n");
-    if let Some(h) = home.filter(|h| !h.is_empty()) {
-        s = s.replace(h, "~");
-    }
-    redact(&s)
-}
-
+/// Removes lines that could carry a secret before text is shown, logged or exported.
 pub fn redact(s: &str) -> String {
     s.lines()
         .map(|l| {
@@ -140,40 +82,61 @@ pub fn redact(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::samsung::envelope::parse_envelope;
-
-    #[test]
-    fn real_failures_map_to_tools_missing() {
-        let e =
-            parse_envelope(include_str!("../tests/fixtures/connect_failure_no_sdk.out")).unwrap();
-        assert_eq!(from_envelope(&e), Some(Diagnosis::ToolsMissing));
-        let e = parse_envelope(include_str!(
-            "../tests/fixtures/acquire_duid_error_no_sdk.out"
-        ))
-        .unwrap();
-        assert_eq!(from_envelope(&e), Some(Diagnosis::ToolsMissing));
-    }
-
-    #[test]
-    fn success_has_no_diagnosis() {
-        let e = parse_envelope(include_str!("../tests/fixtures/scan_success_no_sdb.out")).unwrap();
-        assert_eq!(from_envelope(&e), None);
-    }
+    use crate::sdb::SdbError;
 
     #[test]
     fn probes() {
         assert_eq!(from_probe(Probe::Open), None);
         assert_eq!(from_probe(Probe::Refused), Some(Diagnosis::PortClosed));
         assert_eq!(from_probe(Probe::TimedOut), Some(Diagnosis::TvUnreachable));
+        assert_eq!(
+            from_probe(Probe::NetworkUnreachable),
+            Some(Diagnosis::NetworkUnreachable)
+        );
     }
 
     #[test]
-    fn redaction_and_home_stripping() {
+    fn sdb_errors() {
+        assert_eq!(
+            from_sdb_error(&SdbError::Closed),
+            Diagnosis::ConnectionDropped
+        );
+        assert_eq!(from_sdb_error(&SdbError::NotTizen), Diagnosis::NotATv);
+        assert_eq!(from_sdb_error(&SdbError::Refused), Diagnosis::PortClosed);
+        assert_eq!(
+            from_sdb_error(&SdbError::Timeout),
+            Diagnosis::OperationTimedOut
+        );
+    }
+
+    #[test]
+    fn redaction() {
         assert_eq!(redact("ok\nmy password is x"), "ok\n[redacted line]");
-        let e =
-            parse_envelope(include_str!("../tests/fixtures/connect_failure_no_sdk.out")).unwrap();
-        let d = technical_detail(&e, Some("<HOME>"));
-        assert!(!d.contains("<HOME>"));
-        assert!(d.contains("~/tizen-sdk"));
+        assert_eq!(redact("access_token=abc"), "[redacted line]");
+        assert_eq!(redact("plain"), "plain");
+    }
+
+    #[test]
+    fn serialised_names_are_stable() {
+        let names: Vec<String> = [
+            Diagnosis::NoNetwork,
+            Diagnosis::DevModeOff,
+            Diagnosis::HostIpMismatch,
+            Diagnosis::ConnectionDropped,
+            Diagnosis::OtherNetwork,
+        ]
+        .iter()
+        .map(|d| serde_json::to_string(d).unwrap())
+        .collect();
+        assert_eq!(
+            names,
+            [
+                "\"no_network\"",
+                "\"dev_mode_off\"",
+                "\"host_ip_mismatch\"",
+                "\"connection_dropped\"",
+                "\"other_network\""
+            ]
+        );
     }
 }

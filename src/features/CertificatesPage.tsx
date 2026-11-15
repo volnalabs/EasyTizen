@@ -1,21 +1,48 @@
-import { KeyRound, Plus, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { ArrowRightLeft, KeyRound, Plus, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "../app/context";
-import { Button, DataList, EmptyState, IconButton, IconTile, Modal, PageHeader, Pill, Row, useToast } from "../components/ui";
+import { Button, DataList, EmptyState, Field, IconButton, IconTile, Modal, PageHeader, Pill, Row, useToast } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import { daysLeft, formatDate } from "../lib/format";
 import { api, toApiError } from "../services/api";
 import type { CertificateProfile } from "../types";
 import { CreateCertificateDialog, ImportCertificateDialog } from "./CertDialogs";
 
+/** One-time move of a profile that an older version kept in the Tizen SDK keystore. */
+function TransferDialog({ profile, onClose, onDone }: { profile: CertificateProfile; onClose: () => void; onDone: () => void }) {
+  const { t, err } = useI18n();
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const transfer = async () => {
+    if (!password) return;
+    setBusy(true); setError(null);
+    try { await api.transferLegacyCertificate(profile.name, password); onDone(); }
+    catch (e) { setError(err(toApiError(e))); }
+    finally { setBusy(false); setPassword(""); }
+  };
+  return (
+    <Modal title={t("certTransferTitle")} onClose={onClose}
+      footer={<><Button variant="ghost" onClick={onClose}>{t("cancel")}</Button><Button variant="primary" busy={busy} disabled={!password} onClick={() => void transfer()}>{t("certTransfer")}</Button></>}>
+      <form onSubmit={(e) => { e.preventDefault(); void transfer(); }} className="space-y-3">
+        <p className="text-muted">{t("certTransferBody", { name: profile.name })}</p>
+        <Field label={t("passwordLabel")} error={error}>
+          <input className="input" type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" aria-invalid={!!error} />
+        </Field>
+        <p className="text-small text-muted">{t("certTransferImportHint")}</p>
+      </form>
+    </Modal>
+  );
+}
+
 export function CertificatesPage() {
   const { t, lang, err } = useI18n();
-  const { settings, refresh, info, tv } = useApp();
+  const { settings, refresh, tv } = useApp();
   const toast = useToast();
   const [dialog, setDialog] = useState<"create" | "import" | null>(null);
   const [removing, setRemoving] = useState<CertificateProfile | null>(null);
+  const [transferring, setTransferring] = useState<CertificateProfile | null>(null);
   const [busy, setBusy] = useState(false);
-  const engine = info.mobile ? "builtin" : settings.engine;
 
   const tvName = (duid: string) => settings.devices.find((d) => d.duid?.toLowerCase() === duid.toLowerCase())?.name ?? t("certUnknownTv", { tail: duid.slice(-4) });
   const remove = async () => {
@@ -41,19 +68,19 @@ export function CertificatesPage() {
         <ul className="m-0 list-none space-y-3 p-0">
           {settings.certificate_profiles.map((p) => {
             const days = daysLeft(p.expires_at);
-            const other = p.engine !== engine;
+            const legacy = p.engine === "sdk";
             const expired = days != null && days < 0;
             return (
-              <li key={p.name} className={`card fade-up p-4 sm:p-5 ${other ? "opacity-75" : ""}`}>
+              <li key={p.name} className="card fade-up p-4 sm:p-5">
                 <div className="flex items-start gap-3">
                   <IconTile tone={expired ? "err" : "accent"}><ShieldCheck size={20} aria-hidden /></IconTile>
                   <div className="min-w-0 flex-1">
                     <p className="selectable data text-emph font-semibold">{p.name}</p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {expired ? <Pill tone="err">{t("certExpired", { date: formatDate(p.expires_at!, lang) })}</Pill>
-                        : days != null && days <= 30 ? <Pill tone="warn">{t("certExpiresSoon", { days })}</Pill>
-                          : <Pill tone="ok">{t("certValid")}</Pill>}
-                      {!info.mobile && <Pill tone="neutral">{p.engine === "sdk" ? t("certEngineSdk") : t("certEngineBuiltin")}</Pill>}
+                      {legacy ? <Pill tone="warn">{t("certLegacy")}</Pill>
+                        : expired ? <Pill tone="err">{t("certExpired", { date: formatDate(p.expires_at!, lang) })}</Pill>
+                          : days != null && days <= 30 ? <Pill tone="warn">{t("certExpiresSoon", { days })}</Pill>
+                            : <Pill tone="ok">{t("certValid")}</Pill>}
                       {p.imported && <Pill tone="neutral">{t("certImported")}</Pill>}
                     </div>
                   </div>
@@ -64,7 +91,12 @@ export function CertificatesPage() {
                   <Row label={t("certTvs")}>{p.duids.map(tvName).join(", ")}</Row>
                   {p.expires_at != null && <Row label={t("certValidUntil")}>{formatDate(p.expires_at, lang)}</Row>}
                 </DataList>
-                {other && <p className="mt-2 text-small text-warn">{t("certOtherEngine")}</p>}
+                {legacy && (
+                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <p className="min-w-0 flex-[1_1_16rem] text-small text-muted">{t("certLegacyBody")}</p>
+                    <Button size="sm" variant="primary" onClick={() => setTransferring(p)}><ArrowRightLeft size={14} aria-hidden />{t("certTransfer")}</Button>
+                  </div>
+                )}
               </li>
             );
           })}
@@ -72,6 +104,7 @@ export function CertificatesPage() {
       )}
       {dialog === "create" && <CreateCertificateDialog preselectDuid={tv?.duid} onClose={() => setDialog(null)} onCreated={() => setDialog(null)} />}
       {dialog === "import" && <ImportCertificateDialog onClose={() => setDialog(null)} onImported={() => setDialog(null)} />}
+      {transferring && <TransferDialog profile={transferring} onClose={() => setTransferring(null)} onDone={() => { setTransferring(null); void refresh(); toast("ok", t("certTransferred")); }} />}
       {removing && (
         <Modal title={t("certRemoveTitle")} onClose={() => setRemoving(null)}
           footer={<><Button variant="ghost" onClick={() => setRemoving(null)}>{t("cancel")}</Button><Button variant="danger" busy={busy} onClick={() => void remove()}>{t("remove")}</Button></>}>

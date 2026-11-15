@@ -59,10 +59,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Windows-x64, os: windows-latest, node: win-x64, target: "", bundles: nsis }
-          - { name: macOS-ARM64, os: macos-latest, node: darwin-arm64, target: aarch64-apple-darwin, bundles: "app,dmg" }
-          - { name: macOS-Intel, os: macos-15-intel, node: darwin-x64, target: x86_64-apple-darwin, bundles: "app,dmg" }
-          - { name: Linux-x64, os: ubuntu-22.04, node: linux-x64, target: "", bundles: "appimage,deb" }
+          - { name: Windows-x64, os: windows-latest, target: "", bundles: nsis }
+          - { name: macOS-ARM64, os: macos-latest, target: aarch64-apple-darwin, bundles: "app,dmg" }
+          - { name: macOS-Intel, os: macos-15-intel, target: x86_64-apple-darwin, bundles: "app,dmg" }
+          - { name: Linux-x64, os: ubuntu-22.04, target: "", bundles: "appimage,deb" }
     defaults:
       run:
         shell: bash
@@ -82,8 +82,6 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
-      - name: Download and verify the bundled Node.js runtime
-        run: node scripts/fetch-node.mjs ${{ matrix.node }}
 
       - name: Import the Windows code-signing certificate
         if: runner.os == 'Windows' && needs.signing.outputs.windows == 'signed'
@@ -140,6 +138,20 @@ jobs:
           if [ -f sign.conf.json ]; then args+=(--config sign.conf.json); fi
           if [ -f updater.conf.json ]; then args+=(--config updater.conf.json); fi
           npx tauri build "${args[@]}"
+
+      - name: The Windows app is a GUI program (no console window)
+        if: runner.os == 'Windows'
+        run: |
+          # PE optional header: Subsystem 2 = Windows GUI, 3 = console. A console subsystem would
+          # open a black window next to the app.
+          exe="$(find target -path '*/release/easytizen.exe' -type f | head -1)"
+          node -e '
+            const b = require("fs").readFileSync(process.argv[1]);
+            const pe = b.readUInt32LE(0x3c);
+            const subsystem = b.readUInt16LE(pe + 24 + 68);
+            console.log(process.argv[1], "subsystem", subsystem);
+            if (subsystem !== 2) { console.error("expected the Windows GUI subsystem (2)"); process.exit(1); }
+          ' "$exe"
 
       - name: Collect installers under their published names
         run: |

@@ -34,6 +34,7 @@ export function HistoryPage() {
                       {e.version && <span className="data text-small text-muted">{e.version}</span>}
                       <Pill tone={tone} className="ml-auto">{t(`result_${e.result}`)}</Pill>
                     </div>
+                    {e.app_name && <p className="mt-0.5 text-small break-all text-muted">{e.file_name}</p>}
                     <p className="mt-0.5 text-small text-muted"><span className="break-words">{e.tv_name}</span> · <span className="data">{e.tv_ip}</span></p>
                     <p className="text-caption text-muted"><time dateTime={new Date(e.time * 1000).toISOString()}>{formatDate(e.time, lang, true)}</time></p>
                     {e.error_code && <p className="mt-2 text-small text-fg">{err(e.error_code)}</p>}

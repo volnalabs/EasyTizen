@@ -9,7 +9,7 @@ import { api, on, toApiError } from "../services/api";
 import type { ApiError, ExtraChecks, InstallProgress, InstallResult, InstallStage, OpenedPackage, TvInfo } from "../types";
 import { CreateCertificateDialog, ImportCertificateDialog } from "./CertDialogs";
 
-const STAGES: InstallStage[] = ["signing", "connecting", "uploading", "installing", "launching"];
+const STAGES: InstallStage[] = ["signing", "connecting", "uploading", "installing", "verifying", "launching"];
 
 /** Asked before every installation while the additional checks are off. */
 function SkipChecksDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
@@ -35,11 +35,14 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
   checks: ExtraChecks | null; checksLoading: boolean; onReset: () => void; onInstalled: () => void;
 }) {
   const { t, err } = useI18n();
-  const { settings, info, setBusy: markBusy, go } = useApp();
-  const engine = info.mobile ? "builtin" : settings.engine;
+  const { settings, setBusy: markBusy, go } = useApp();
   const profiles = useMemo(
-    () => settings.certificate_profiles.filter((p) => p.engine === engine && !!tv.duid && p.duids.some((d) => d.toLowerCase() === tv.duid!.toLowerCase()) && (daysLeft(p.expires_at) ?? 1) >= 0),
-    [settings.certificate_profiles, engine, tv.duid],
+    () => settings.certificate_profiles.filter((p) => p.engine === "builtin" && !!tv.duid && p.duids.some((d) => d.toLowerCase() === tv.duid!.toLowerCase()) && (daysLeft(p.expires_at) ?? 1) >= 0),
+    [settings.certificate_profiles, tv.duid],
+  );
+  const legacy = useMemo(
+    () => settings.certificate_profiles.some((p) => p.engine === "sdk" && !!tv.duid && p.duids.some((d) => d.toLowerCase() === tv.duid!.toLowerCase())),
+    [settings.certificate_profiles, tv.duid],
   );
   const alreadySigned = pkg.report.signature === "signed_structure";
   const [profile, setProfile] = useState("");
@@ -111,6 +114,8 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
         </span>
         <p className="mt-4 text-display font-semibold tracking-[-0.02em]" role="status">{t("installSuccessTitle")}</p>
         <p className="mx-auto mt-1.5 max-w-[42ch] text-muted">{t("installSuccess", { name: result.app_name ?? pkg.report.file_name, tv: tv.name })}</p>
+        <p className="mx-auto mt-1 max-w-[42ch] text-small text-muted">{result.in_app_list === true ? t("installVerified") : t("installConfirmedByTv")}</p>
+        {result.in_app_list === false && <p className="mx-auto mt-1 max-w-[42ch] text-small text-warn">{t("installNotInList")}</p>}
         {result.launched != null && <p className={`mx-auto mt-1 max-w-[42ch] text-small ${result.launched ? "text-muted" : "text-warn"}`}>{result.launched ? t("installLaunched") : t("installNotLaunched")}</p>}
         <div className="mt-6 flex flex-col-reverse justify-center gap-2 sm:flex-row">
           <Button variant="ghost" onClick={() => go("history")}><History size={16} aria-hidden />{t("installOpenHistory")}</Button>
@@ -122,8 +127,8 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
 
   if (busy || removing) {
     const index = progress ? STAGES.indexOf(progress.stage) : -1;
-    const visible = STAGES.filter((s) => (s !== "signing" || willSign) && (s !== "launching" || runAfter) && (s !== "connecting" || engine === "builtin") && (s !== "uploading" || engine === "builtin"));
-    const measured = progress && (progress.stage === "uploading" || progress.stage === "signing");
+    const visible = STAGES.filter((s) => (s !== "signing" || willSign) && (s !== "launching" || runAfter));
+    const measured = progress && (progress.stage === "uploading" || progress.stage === "signing" || (progress.stage === "installing" && progress.fraction > 0));
     return (
       <div className="fade-up" aria-live="polite">
         <ol className="relative m-0 list-none space-y-0 p-0">
@@ -176,12 +181,13 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
             <IconTile><KeyRound size={20} aria-hidden /></IconTile>
             <div className="min-w-0 flex-1">
               <p className="font-semibold">{t("installCertNone")}</p>
-              <p className="mt-0.5 text-small text-muted">{t("installCertNoneBody")}</p>
+              <p className="mt-0.5 text-small text-muted">{legacy ? t("installCertLegacy") : t("installCertNoneBody")}</p>
             </div>
           </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:pl-[3.25rem]">
             <Button variant="primary" onClick={() => setDialog("create")}><KeyRound size={16} aria-hidden />{t("installCertCreate")}</Button>
             <Button onClick={() => setDialog("import")}>{t("installCertImport")}</Button>
+            {legacy && <Button variant="ghost" onClick={() => go("certs")}>{t("certTransferOpen")}</Button>}
           </div>
         </div>
       ))}
@@ -198,7 +204,7 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
       {cancelled && <Notice tone="info">{t("installCancelled")}</Notice>}
       {error && (
         <Notice tone="err" title={t("installFailedTitle")}
-          action={error.code === "tv_author_mismatch" && engine === "builtin" && pkg.report.app_id ? <Button size="sm" onClick={() => void uninstallAndRetry()}>{t("installUninstallRetry")}</Button> : undefined}>
+          action={error.code === "tv_author_mismatch" && pkg.report.app_id ? <Button size="sm" onClick={() => void uninstallAndRetry()}>{t("installUninstallRetry")}</Button> : undefined}>
           <p className="text-fg">{err(error)}</p>
           {error.detail && <Details label={t("technicalDetails")}>{error.detail}</Details>}
         </Notice>

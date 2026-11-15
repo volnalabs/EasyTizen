@@ -1,0 +1,12 @@
+Samsung TV developer CA certificates
+
+vd_tizen_dev_author_ca.cer, vd_tizen_dev_public2.crt, vd_tizen_dev_partner2.crt
+
+Public CA certificates (no private keys) as distributed with the Samsung TV SDK
+extension. They are taken from Samsung's open-source tizen-agent-skills project
+(https://github.com/Samsung/tizen-agent-skills, tizen-sdk-skills/common/assets/samsung-tv-ca,
+commit 1509f7b9c5f659dda2222ce4264a3a3a35cbbe69), Copyright 2026 Samsung Electronics Co., Ltd.,
+licensed under the Apache License, Version 2.0 (see LICENSE in this folder).
+
+TV-Deploy embeds them into the signing keystores it builds, as Samsung's own
+certificate manager does. Nothing else from that project is redistributed.

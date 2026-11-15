@@ -7,7 +7,7 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 ### easytizen-core
 | Crate | Purpose | License |
 |---|---|---|
-| serde, serde_json | data shapes, Samsung CLI envelopes | MIT / Apache-2.0 |
+| serde, serde_json | data shapes, Samsung device API answers | MIT / Apache-2.0 |
 | thiserror | error types | MIT / Apache-2.0 |
 | zip (deflate) | reading and rewriting `.wgt` archives | MIT |
 | roxmltree | `config.xml` and signature parsing (no DTD support by design) | MIT / Apache-2.0 |
@@ -18,6 +18,8 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 | getrandom | system randomness for key generation | MIT / Apache-2.0 |
 | ureq (rustls, webpki-roots) | HTTPS to Samsung's CA and GitHub's API | MIT / Apache-2.0 |
 | minisign-verify | verifying update signatures (Android APK) | MIT |
+| if-addrs | listing the network interfaces for discovery (Windows, macOS, Linux, Android) | MIT / BSD-3-Clause |
+| socket2 | choosing the outgoing interface for SSDP multicast | MIT / Apache-2.0 |
 | tempfile (dev) | tests | MIT / Apache-2.0 |
 
 ### easytizen (src-tauri)
@@ -27,7 +29,6 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 | tauri-plugin-dialog | native open/save pickers | MIT / Apache-2.0 |
 | tauri-plugin-fs | reading Android `content://` documents from Rust | MIT / Apache-2.0 |
 | tauri-plugin-opener | opening the Samsung sign-in page and GitHub links | MIT / Apache-2.0 |
-| fs2 | free disk space | MIT / Apache-2.0 |
 | tauri-plugin-updater (desktop only) | signed self-update; registered only in builds that carry the update key | MIT / Apache-2.0 |
 | serde, serde_json | settings, history | MIT / Apache-2.0 |
 
@@ -42,10 +43,10 @@ Exact versions are locked in `Cargo.lock` and `package-lock.json`; full trees: `
 | tailwindcss, @tailwindcss/vite (dev) | styling | MIT |
 | vite, @vitejs/plugin-react, typescript, vitest, @tauri-apps/cli (dev) | build and tests | MIT / Apache-2.0 |
 
-## Vendored and fetched
+## Vendored
 
 | Component | Where | License |
 |---|---|---|
-| Samsung `tizen-sdk-skills` `common/lib`, installer scripts, Samsung VD CA certificates @ `1509f7b9…` (v1.7.0) | `resources/samsung-cli`, pinned in `PINNED.json`; desktop bundles (CA certificates also in the core) | Apache-2.0 — `LICENSE`, `NOTICE` shipped |
-| Node.js 22.23.4 | fetched at build time by `scripts/fetch-node.mjs` (SHA-256 checked), desktop bundles only | MIT |
-| Tizen SDK, Samsung TV Extension | **not distributed**; downloaded on the user's machine by Samsung's installer | Samsung's terms |
+| Samsung VD CA certificates (`vd_tizen_dev_author_ca.cer`, `vd_tizen_dev_public2.crt`, `vd_tizen_dev_partner2.crt`) from Samsung `tizen-agent-skills` @ `1509f7b9…` | `crates/easytizen-core/assets/samsung-tv-ca`, compiled into the core | Apache-2.0 — `LICENSE`, `NOTICE` next to them |
+
+Nothing is fetched at build or run time: the Tizen SDK, Samsung TV Extension, `sdb` and Node.js are not used.

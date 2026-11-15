@@ -1,14 +1,13 @@
 //! EasyTizen application shell (desktop and Android). The React frontend can only call the
 //! typed commands registered below; it never starts processes or touches arbitrary paths.
+//! The app itself starts no child processes either: everything runs in-process.
 
 mod api;
+mod applog;
 mod builtin;
 mod history;
 mod migrate;
-mod sdk_engine;
-mod sdk_installer;
 mod settings;
-mod toolchain;
 mod updates;
 
 use easytizen_core::cancel::CancelToken;
@@ -77,8 +76,23 @@ pub fn run() {
         .manage(updates::UpdateState::default())
         .setup(|app| {
             let dir = app.path().app_data_dir().expect("app data dir");
-            migrate::migrate_legacy_data(&dir);
+            let migrated = migrate::migrate_legacy_data(&dir);
             std::fs::create_dir_all(&dir).ok();
+            applog::init(&dir);
+            applog::info(
+                "start",
+                format!(
+                    "EasyTizen {} on {} {}{}",
+                    env!("CARGO_PKG_VERSION"),
+                    std::env::consts::OS,
+                    std::env::consts::ARCH,
+                    if migrated {
+                        " (settings migrated from TV Deploy 0.1)"
+                    } else {
+                        ""
+                    }
+                ),
+            );
             let cache = app
                 .path()
                 .app_cache_dir()
@@ -97,26 +111,23 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             api::app_info,
+            api::network_info,
             api::get_settings,
             api::save_preferences,
-            api::set_engine,
             api::complete_onboarding,
             api::cancel_operation,
             api::remove_device,
             api::rename_device,
-            api::toolchain_status,
-            api::find_existing_sdk,
-            api::set_sdk_path,
-            api::sdk_preflight,
-            api::install_samsung_sdk,
+            api::update_device_address,
             api::scan_tvs,
             api::connect_tv,
-            api::disconnect_tv,
+            api::check_tv,
             api::open_package,
             api::verify_package,
             api::set_extra_package_checks,
             api::create_certificate,
             api::import_certificate,
+            api::transfer_legacy_certificate,
             api::remove_certificate,
             api::install_package,
             api::uninstall_app,
@@ -124,6 +135,7 @@ pub fn run() {
             api::clear_history,
             api::diagnostics_report,
             api::save_text_file,
+            api::open_log_folder,
             api::check_for_update,
             updates::update_check,
             updates::update_download,

@@ -6,14 +6,13 @@ import { Button, IconTile, Segmented } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import { api } from "../services/api";
 import { DevModeGuide } from "./DevModeGuide";
-import { EngineChoice } from "./EngineChoice";
-import { ToolsPanel } from "./Setup";
+import { HostIpCard } from "../components/HostIpCard";
 
-/** First-run guide: welcome → tools (desktop) → Developer Mode on the TV → done. */
+/** First-run guide: welcome → Developer Mode on the TV → done. Nothing to download or install. */
 export function Onboarding({ onDone }: { onDone: () => void }) {
   const { t } = useI18n();
   const { info, settings, refresh } = useApp();
-  const steps = info.mobile ? (["welcome", "tv", "done"] as const) : (["welcome", "tools", "tv", "done"] as const);
+  const steps = ["welcome", "tv", "done"] as const;
   const [index, setIndex] = useState(0);
   const step = steps[index];
   const finish = async () => { await api.completeOnboarding(); await refresh(); onDone(); };
@@ -54,22 +53,13 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               </div>
             </div>
           )}
-          {step === "tools" && (
-            <div className="space-y-5">
-              <div>
-                <h1 className="text-heading font-semibold tracking-[-0.015em]">{t("obToolsTitle")}</h1>
-                <p className="mt-1.5 text-muted">{t("obToolsBody")}</p>
-              </div>
-              <EngineChoice />
-              {settings.engine === "sdk" && <div className="card p-4 sm:p-5"><ToolsPanel /></div>}
-            </div>
-          )}
           {step === "tv" && (
             <div className="space-y-5">
               <div>
                 <h1 className="text-heading font-semibold tracking-[-0.015em]">{t("obTvTitle")}</h1>
                 <p className="mt-1.5 text-muted">{t("obTvBody")}</p>
               </div>
+              <HostIpCard />
               <div className="card p-4 sm:p-5"><DevModeGuide /></div>
             </div>
           )}
@@ -90,7 +80,6 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             ? <Button variant="ghost" onClick={() => setIndex(index - 1)}><ArrowLeft size={16} aria-hidden />{t("back")}</Button>
             : <Button variant="ghost" onClick={() => void finish()}>{t("skip")}</Button>}
           <div className="ml-auto flex flex-wrap justify-end gap-2">
-            {step === "tools" && <Button variant="ghost" onClick={next}>{t("obLater")}</Button>}
             <Button variant="primary" onClick={next}>{index === steps.length - 1 ? t("obStart") : t("next")}<ArrowRight size={16} aria-hidden /></Button>
           </div>
         </div>

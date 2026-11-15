@@ -1,6 +1,6 @@
 [package]
 name = "easytizen-core"
-description = "EasyTizen core: safe WGT analysis and signing, native SDB client, Samsung certificate flow, diagnostics"
+description = "EasyTizen core: TV discovery, native SDB client, safe WGT analysis and signing, Samsung certificate flow, diagnostics"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -24,6 +24,8 @@ x509-cert = { version = "0.3", features = ["builder", "pem"] }
 ureq = "3"
 getrandom = { version = "0.4", features = ["sys_rng"] }
 minisign-verify = "0.3"
+if-addrs = "0.15"
+socket2 = "0.6"
 
 [dev-dependencies]
 tempfile = "3"

@@ -280,6 +280,29 @@ mod tests {
         );
     }
 
+    /// The `#prop` object digests must be byte-identical to what Samsung's signer produces.
+    /// The two constants are hard-coded in independent installers that are known to install
+    /// on physical TVs (tizen.js `packageSigner.js`, `tizen-app-installer-cli` TizenResign.cs).
+    #[test]
+    fn prop_object_digests_match_the_proven_reference() {
+        let digest = |role: Role| {
+            let canonical = object_element(role).replacen(
+                "<Object ",
+                &format!("<Object xmlns=\"{DSIG_NS}\" "),
+                1,
+            );
+            b64(&Sha512::digest(canonical.as_bytes()))
+        };
+        assert_eq!(
+            digest(Role::Author),
+            "aXbSAVgmAz0GsBUeZ1UmNDRrxkWhDUVGb45dZcNRq429wX3X+x6kaXT3NdNDTSNVTU+ypkysPMGvQY10fG1EWQ=="
+        );
+        assert_eq!(
+            digest(Role::Distributor),
+            "/r5npk2VVA46QFJnejgONBEh4BWtjrtu9x/IFeLksjWyGmB/cMWKSJWQl7aU3YRQRZ3AesG8gF7qGyvKX9Snig=="
+        );
+    }
+
     #[test]
     fn signature_file_names() {
         assert!(is_signature_file("author-signature.xml"));
