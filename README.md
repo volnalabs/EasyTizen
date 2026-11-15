@@ -15,6 +15,71 @@
 
 **[Скачать](#download)** &nbsp;·&nbsp; [Возможности](#features) &nbsp;·&nbsp; [Как выглядит](#look) &nbsp;·&nbsp; **[Установка](#install)** &nbsp;·&nbsp; [Android](#android) &nbsp;·&nbsp; [Windows](#windows) &nbsp;·&nbsp; [macOS](#macos) &nbsp;·&nbsp; [Linux](#linux) &nbsp;·&nbsp; [Samsung TV](#samsung-tv) &nbsp;·&nbsp; [FAQ](#faq) &nbsp;·&nbsp; [Для разработчиков](#dev)
 
+<a name="download"></a>
+
+## <img src="docs/readme/s-download.svg" width="36" height="36" align="top" alt=""> Скачать
+
+**Выберите устройство — кнопка ведёт на актуальную версию EasyTizen.**
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**📱 Android — телефон или планшет**
+
+Android 7.0 и новее. Компьютер для установки не нужен.
+
+<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Android.apk"><img src="docs/readme/d-android-ru.svg" width="100%" alt="Скачать EasyTizen для Android — телефон или планшет"></a>
+
+Файл: `EasyTizen-Android.apk`
+
+</td>
+<td width="50%" valign="top">
+
+**💻 Windows — компьютер или ноутбук**
+
+Windows 10/11, 64-bit.
+
+<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe"><img src="docs/readme/d-windows-ru.svg" width="100%" alt="Скачать EasyTizen для Windows"></a>
+
+Файл: `EasyTizen-Windows-x64-Setup.exe`
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**🍎 macOS — Mac**
+
+Один файл для Apple silicon и Intel. macOS 10.15 и новее.
+
+<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"><img src="docs/readme/d-mac-ru.svg" width="100%" alt="Скачать EasyTizen для macOS"></a>
+
+Файл: `EasyTizen-macOS.app.tar.gz`
+
+</td>
+<td width="50%" valign="top">
+
+**🐧 Linux — компьютер**
+
+64-bit. Универсальный AppImage для поддерживаемых дистрибутивов.
+
+<a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.AppImage"><img src="docs/readme/d-appimage-ru.svg" width="100%" alt="Скачать EasyTizen для Linux"></a>
+
+Файл: `EasyTizen-Linux-x64.AppImage`
+
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
+
+[Все версии и исходный код →](https://github.com/volnalabs/TV-Deploy/releases)
+
+</td>
+</tr>
+</table>
+
+SHA-256 контрольные суммы доступны на странице каждого [релиза](https://github.com/volnalabs/TV-Deploy/releases).
 
 <br>
 
@@ -30,28 +95,6 @@
 EasyTizen работает сразу после установки: **никакого Tizen SDK, Tizen Studio, Node.js, Python и загрузок на 15 ГБ.** Поиск телевизора, сертификаты Samsung, подписание и установка `.wgt` выполняются собственным встроенным движком — одинаково на Windows, macOS, Linux и Android.
 
 EasyTizen — самостоятельный инструмент с открытым исходным кодом. Он не содержит приложений для телевизора и ничего не скачивает за вас: файл `.wgt` для установки вы выбираете сами.
-
-<p align="center"><img src="docs/readme/divider.svg" width="100%" height="24" alt=""></p>
-
-<a name="download"></a>
-
-## <img src="docs/readme/s-download.svg" width="36" height="36" align="top" alt=""> Скачать
-
-<table>
-<tr>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Android.apk"><img src="docs/readme/d-android-ru.svg" width="100%" alt="EasyTizen-Android.apk — Android"></a></td>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe"><img src="docs/readme/d-windows-ru.svg" width="100%" alt="EasyTizen-Windows-x64-Setup.exe — Windows"></a></td>
-</tr>
-<tr>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-macOS.app.tar.gz"><img src="docs/readme/d-mac-ru.svg" width="100%" alt="EasyTizen-macOS.app.tar.gz — macOS (Apple и Intel)"></a></td>
-<td width="50%"><a href="https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Linux-x64.AppImage"><img src="docs/readme/d-appimage-ru.svg" width="100%" alt="EasyTizen-Linux-x64.AppImage — Linux"></a></td>
-</tr>
-<tr>
-<td colspan="2"><a href="https://github.com/volnalabs/TV-Deploy/releases"><img src="docs/readme/p-all-ru.svg" width="50%" alt="Все версии и исходный код"></a></td>
-</tr>
-</table>
-
-Ссылки всегда ведут на свежую версию. Не знаете, что выбрать, — смотрите [установку](#install). Контрольные суммы SHA-256 есть на странице каждого [релиза](https://github.com/volnalabs/TV-Deploy/releases).
 
 <p align="center"><img src="docs/readme/divider.svg" width="100%" height="24" alt=""></p>
 
@@ -235,22 +278,28 @@ EasyTizen — самостоятельный инструмент с откры�
 
 <table>
 <tr>
-<td width="25%" valign="top"><img src="docs/img/ru/android-welcome.png" alt="Первый запуск"><br><sub><b>Первый запуск</b></sub></td>
-<td width="25%" valign="top"><img src="docs/img/ru/android-home.png" alt="Главный экран"><br><sub><b>Главный экран</b></sub></td>
-<td width="25%" valign="top"><img src="docs/img/ru/android-find.png" alt="Поиск"><br><sub><b>Поиск телевизора</b></sub></td>
-<td width="25%" valign="top"><img src="docs/img/ru/android-connected.png" alt="Подключение"><br><sub><b>Подключён</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-welcome.png" alt="Первый запуск"><br><sub><b>Первый запуск</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-home.png" alt="Главный экран"><br><sub><b>Главный экран</b></sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="docs/img/ru/android-package.png" alt="Выбор WGT"><br><sub><b>Файл выбран</b></sub></td>
-<td valign="top"><img src="docs/img/ru/android-check.png" alt="Проверка пакета"><br><sub><b>Проверка пакета</b></sub></td>
-<td valign="top"><img src="docs/img/ru/android-progress.png" alt="Установка"><br><sub><b>Ход установки</b></sub></td>
-<td valign="top"><img src="docs/img/ru/android-success.png" alt="Готово"><br><sub><b>Установлено</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-find.png" alt="Поиск"><br><sub><b>Поиск телевизора</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-connected.png" alt="Подключение"><br><sub><b>Подключён</b></sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="docs/img/ru/android-settings.png" alt="Настройки"><br><sub><b>Настройки</b></sub></td>
-<td valign="top"><img src="docs/img/ru/android-updates.png" alt="Обновления"><br><sub><b>Обновления</b></sub></td>
-<td valign="top"><img src="docs/img/ru/android-security.png" alt="Безопасность"><br><sub><b>Проверка безопасности</b></sub></td>
-<td valign="top"><img src="docs/img/ru/android-devmode.png" alt="Режим разработчика"><br><sub><b>Подсказка для ТВ</b> с адресом телефона</sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-package.png" alt="Выбор WGT"><br><sub><b>Файл выбран</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-check.png" alt="Проверка пакета"><br><sub><b>Проверка пакета</b></sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/img/ru/android-progress.png" alt="Установка"><br><sub><b>Ход установки</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-success.png" alt="Готово"><br><sub><b>Установлено</b></sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/img/ru/android-settings.png" alt="Настройки"><br><sub><b>Настройки</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-updates.png" alt="Обновления"><br><sub><b>Обновления</b></sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/img/ru/android-security.png" alt="Безопасность"><br><sub><b>Проверка безопасности</b></sub></td>
+<td width="50%" valign="top"><img src="docs/img/ru/android-devmode.png" alt="Режим разработчика"><br><sub><b>Подсказка для ТВ</b> с адресом телефона</sub></td>
 </tr>
 </table>
 
