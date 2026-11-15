@@ -5,6 +5,7 @@ import { Button, Details, Field, IconTile, Modal, Notice, Progress, Spinner, Tog
 import { useI18n } from "../hooks/i18n";
 import type { Key } from "../i18n";
 import { daysLeft, opId } from "../lib/format";
+import { prefersOriginalSignature } from "../lib/tv";
 import { api, on, toApiError } from "../services/api";
 import type { ApiError, ExtraChecks, InstallProgress, InstallResult, InstallStage, OpenedPackage, TvInfo } from "../types";
 import { CreateCertificateDialog, ImportCertificateDialog } from "./CertDialogs";
@@ -74,14 +75,15 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
   const blocked = !!checks?.enabled && checks.findings.some((f) => f.blocking);
   const canInstall = !busy && !checksLoading && !blocked && (willSign ? !!profile && !!tv.duid : true);
 
-  const install = async (withPassword: string | null = null) => {
+  const install = async (withPassword: string | null = null, asIs = false) => {
+    const sign = willSign && !asIs;
     const id = opId();
     op.current = id;
     setBusy(true); setError(null); setResult(null); setCancelled(false); setProgress(null); setAskPassword(null);
     try {
       setResult(await api.installPackage({
-        packagePath: pkg.path, profileName: willSign ? profile : null, ip: tv.ip, port: tv.port, duid: tv.duid,
-        runAfterInstall: runAfter, resign: willSign, password: withPassword, checksSkipConfirmed: checksOff && skipConfirmed.current,
+        packagePath: pkg.path, profileName: sign ? profile : null, ip: tv.ip, port: tv.port, duid: tv.duid,
+        runAfterInstall: runAfter, resign: sign, password: withPassword, checksSkipConfirmed: checksOff && skipConfirmed.current,
       }, id));
       onInstalled();
     } catch (e) {
@@ -164,7 +166,8 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
   return (
     <div className="space-y-4">
       {!tv.duid && willSign && <Notice tone="warn">{t("tvNoDuid")}</Notice>}
-      {alreadySigned && <Toggle checked={resign} onChange={onResign} label={t("installResign")} description={t("installResignHint")} />}
+      {alreadySigned && <Toggle checked={resign} onChange={onResign} label={t("installResign")}
+        description={prefersOriginalSignature(tv.tizen_version, alreadySigned) ? t("installResignHintOldTv", { tizen: tv.tizen_version ?? "" }) : t("installResignHint")} />}
 
       {willSign && tv.duid && (profiles.length > 0 ? (
         <Field label={t("installCert")} htmlFor="install-cert">
@@ -204,7 +207,9 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
       {cancelled && <Notice tone="info">{t("installCancelled")}</Notice>}
       {error && (
         <Notice tone="err" title={t("installFailedTitle")}
-          action={error.code === "tv_author_mismatch" && pkg.report.app_id ? <Button size="sm" onClick={() => void uninstallAndRetry()}>{t("installUninstallRetry")}</Button> : undefined}>
+          action={error.code === "tv_author_mismatch" && pkg.report.app_id ? <Button size="sm" onClick={() => void uninstallAndRetry()}>{t("installUninstallRetry")}</Button>
+            : error.code === "tv_cert_rejected" && alreadySigned && willSign ? <Button size="sm" onClick={() => { onResign(false); void install(null, true); }}>{t("installAsIsRetry")}</Button>
+              : undefined}>
           <p className="text-fg">{err(error)}</p>
           {error.detail && <Details label={t("technicalDetails")}>{error.detail}</Details>}
         </Notice>

@@ -71,3 +71,20 @@ describe("TV list", () => {
     expect(mergeTvs(saved, null, false)).toEqual([]);
   });
 });
+
+describe("signature choice by Tizen version", () => {
+  it("older TVs install an already signed file as it is; Tizen 7+ re-signs", async () => {
+    const { prefersOriginalSignature, tizenMajor } = await import("./tv");
+    expect(tizenMajor("4.0")).toBe(4);
+    expect(tizenMajor("6.5")).toBe(6);
+    expect(tizenMajor(null)).toBeNull();
+    expect(tizenMajor("")).toBeNull();
+    expect(prefersOriginalSignature("4.0", true)).toBe(true);
+    expect(prefersOriginalSignature("6.5", true)).toBe(true);
+    expect(prefersOriginalSignature("7.0", true)).toBe(false);
+    expect(prefersOriginalSignature("8.0", true)).toBe(false);
+    // Unsigned files must be signed; an unknown version keeps the safe default (re-sign).
+    expect(prefersOriginalSignature("4.0", false)).toBe(false);
+    expect(prefersOriginalSignature(null, true)).toBe(false);
+  });
+});

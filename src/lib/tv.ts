@@ -76,6 +76,23 @@ export function mergeTvs(saved: SavedDevice[], found: FoundTv[] | null, showSave
   return [...map.values()].sort((a, b) => rank(a) - rank(b) || ipValue(a.ip) - ipValue(b.ip));
 }
 
+/** Major Tizen version ("4.0" → 4); null when unknown. */
+export function tizenMajor(version: string | null | undefined): number | null {
+  const major = Number.parseInt(String(version ?? "").split(".")[0], 10);
+  return Number.isFinite(major) ? major : null;
+}
+
+/**
+ * Whether to install an already signed package as it is by default. TVs before Tizen 7 accept
+ * the developer's own signature in Developer Mode — this is what `tizen-app-installer-cli`
+ * does — while re-signing with a Samsung certificate can be refused there (error 118012).
+ * From Tizen 7 on, Samsung's certificate is required.
+ */
+export function prefersOriginalSignature(tizenVersion: string | null | undefined, alreadySigned: boolean): boolean {
+  const major = tizenMajor(tizenVersion);
+  return alreadySigned && major !== null && major < 7;
+}
+
 export function ipValue(ip: string): number {
   return ip.split(".").reduce((acc, part) => acc * 256 + (Number(part) || 0), 0);
 }

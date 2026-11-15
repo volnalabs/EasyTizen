@@ -316,7 +316,7 @@ export const en = {
   err_not_a_tv: "The device at this address is not a Samsung TV.",
   err_upload_failed: "The file could not be sent to the TV.",
   err_tv_rejected: "The TV rejected the request.",
-  err_tv_cert_rejected: "The TV rejected the signature. The certificate must be issued for this TV's Device ID and still be valid — create a new certificate for this TV.",
+  err_tv_cert_rejected: "The TV rejected the signature (certificate check failed). If the file was already signed by its developer, install it without re-signing — TVs before Tizen 7 accept that signature. Otherwise the certificate must be issued for this TV's Device ID and still be valid.",
   err_tv_author_mismatch: "This app is already on the TV, signed by a different author. Remove it from the TV first, then install again.",
   err_tv_no_space: "The TV does not have enough free space.",
   err_install_unrecognised: "The TV did not confirm the installation. Check Apps on the TV; details are below.",
@@ -535,6 +535,8 @@ export const en = {
   err_device_exists: "Another saved TV already uses this address.",
   err_device_missing: "This TV is no longer saved.",
   err_tv_connection_lost: "The TV closed the connection. Check the Wi-Fi signal and the Host PC IP on the TV, then try again.",
+  installResignHintOldTv: "This TV runs Tizen {tizen}: it accepts the developer's own signature, so the file is installed as it is. Turn on if the TV refuses it.",
+  installAsIsRetry: "Install without re-signing",
 } as const;
 
 export type Key = keyof typeof en;
