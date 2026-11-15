@@ -126,6 +126,7 @@ pub fn run() {
             api::verify_package,
             api::set_extra_package_checks,
             api::create_certificate,
+            api::create_tizen_certificate,
             api::import_certificate,
             api::transfer_legacy_certificate,
             api::remove_certificate,

@@ -25,6 +25,9 @@ pub struct MockFaults {
     pub refuse_tmp_dir: bool,
     /// Refuse the `capability:` service.
     pub refuse_capability: bool,
+    /// Answer like a Tizen 4 TV when the app is already installed with another signature:
+    /// only `install failed[118012]`.
+    pub installed_with_other_signature: bool,
 }
 
 #[derive(Debug, Default)]
@@ -317,6 +320,11 @@ impl MockTv {
                 let Some(bytes) = state.files.get(*path).cloned() else {
                     return format!("install {app_id}\npackage_path {path}\napp_id[{app_id}] install failed[118, -3], reason: package not found\ncmd_ret:1\n");
                 };
+                if state.faults.installed_with_other_signature
+                    && state.installed.iter().any(|a| a == app_id)
+                {
+                    return format!("install {app_id}\npackage_path {path}\napp_id[{app_id}] install start\napp_id[{app_id}] installing[16]\napp_id[{app_id}] install failed[118012]\ncmd_ret:0\n");
+                }
                 match check_package(&bytes, &self.duid) {
                     Ok(()) => {
                         if !state.installed.iter().any(|a| a == app_id) {
@@ -645,6 +653,41 @@ mod tests {
         assert!(state.shell_commands.iter().any(|c| c.starts_with(
             "0 vd_appinstall abcde12345.Demo /home/owner/share/tmp/sdk_tools/tmp/easytizen-"
         )));
+    }
+
+    #[test]
+    fn a_copy_with_another_signature_is_reported_as_such() {
+        let tv = MockTv::start_with(
+            Ipv4Addr::LOCALHOST,
+            0,
+            DUID,
+            MockFaults {
+                installed_with_other_signature: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        tv.state
+            .lock()
+            .unwrap()
+            .installed
+            .push("abcde12345.Demo".into());
+        let (result, _) = install(&tv, &signed_like_package(), false);
+        let outcome = result.unwrap();
+        assert_eq!(
+            outcome.verdict,
+            InstallVerdict::Failed(InstallFailure::AuthorMismatch),
+            "118012 with the app already on the TV means: remove the old copy"
+        );
+        // Not installed at all: a plain certificate rejection stays one.
+        tv.state.lock().unwrap().installed.clear();
+        let mut bad = signed_like_package();
+        bad.truncate(bad.len() / 2);
+        let (result, _) = install(&tv, &bad, false);
+        assert_ne!(
+            result.map(|o| o.verdict).ok(),
+            Some(InstallVerdict::Failed(InstallFailure::AuthorMismatch))
+        );
     }
 
     #[test]

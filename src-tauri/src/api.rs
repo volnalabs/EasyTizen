@@ -649,7 +649,10 @@ pub async fn create_certificate(
             .iter()
             .find(|p| p.name == args.profile_name)
         {
-            if !existing.is_legacy() && args.duids.iter().all(|d| existing.covers(d)) {
+            if !existing.is_legacy()
+                && !existing.is_tizen()
+                && args.duids.iter().all(|d| existing.covers(d))
+            {
                 return Ok(existing.clone());
             }
             return Err(ApiError::new("profile_exists"));
@@ -662,6 +665,60 @@ pub async fn create_certificate(
     let profile =
         result.inspect_err(|e| applog::warn("certificate", format!("create: {}", e.code)))?;
     applog::info("certificate", format!("created profile {}", profile.name));
+    let mut s = state.settings.lock().unwrap();
+    s.certificate_profiles.retain(|p| p.name != profile.name);
+    s.certificate_profiles.push(profile.clone());
+    save(&state, &s)?;
+    Ok(profile)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTizenCertificateArgs {
+    pub profile_name: String,
+    pub identity: String,
+    pub password: String,
+    /// A local copy of Samsung's certificate-generator zip (path or `content://` URI).
+    /// `None`: download it from download.tizen.org.
+    #[serde(default)]
+    pub package_source: Option<String>,
+}
+
+/// Creates a Tizen certificate (no Samsung account, any TV before Tizen 7).
+#[tauri::command]
+pub async fn create_tizen_certificate(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    args: CreateTizenCertificateArgs,
+    op_id: Option<String>,
+) -> ApiResult<SavedCertificateProfile> {
+    validate_profile_name(&args.profile_name)?;
+    validate_cert_password(&args.password)?;
+    let identity = args.identity.trim().to_string();
+    if !(2..=64).contains(&identity.chars().count()) || identity.chars().any(|c| c.is_control()) {
+        return Err(ApiError::new("invalid_identity"));
+    }
+    if state
+        .settings
+        .lock()
+        .unwrap()
+        .certificate_profiles
+        .iter()
+        .any(|p| p.name == args.profile_name)
+    {
+        return Err(ApiError::new("profile_exists"));
+    }
+    let args = CreateTizenCertificateArgs { identity, ..args };
+    let cancel = register(&state, &op_id);
+    let result =
+        builtin::create_tizen_certificate(&app, &state, &args, op_id.clone(), cancel).await;
+    unregister(&state, &op_id);
+    let profile =
+        result.inspect_err(|e| applog::warn("certificate", format!("create tizen: {}", e.code)))?;
+    applog::info(
+        "certificate",
+        format!("created Tizen profile {}", profile.name),
+    );
     let mut s = state.settings.lock().unwrap();
     s.certificate_profiles.retain(|p| p.name != profile.name);
     s.certificate_profiles.push(profile.clone());
@@ -865,14 +922,6 @@ pub async fn install_package(
             .unwrap_or_else(|| format!("Samsung TV {ip}"));
         let profile = match (&args.profile_name, args.resign) {
             (Some(name), true) => {
-                let duid = args
-                    .duid
-                    .as_deref()
-                    .filter(|d| valid_duid(d))
-                    .ok_or_else(|| ApiError::new("invalid_duid"))?;
-                if device.and_then(|d| d.duid.as_deref()) != Some(duid) {
-                    return Err(ApiError::new("duid_not_verified"));
-                }
                 let profile = s
                     .certificate_profiles
                     .iter()
@@ -882,8 +931,20 @@ pub async fn install_package(
                 if profile.is_legacy() {
                     return Err(ApiError::new("certificate_legacy"));
                 }
-                if !profile.covers(duid) {
-                    return Err(ApiError::new("profile_duid_mismatch"));
+                // A Samsung certificate is bound to TVs: the DUID must be one EasyTizen read
+                // from this TV. A Tizen certificate works for any TV in Developer Mode.
+                if !profile.is_tizen() {
+                    let duid = args
+                        .duid
+                        .as_deref()
+                        .filter(|d| valid_duid(d))
+                        .ok_or_else(|| ApiError::new("invalid_duid"))?;
+                    if device.and_then(|d| d.duid.as_deref()) != Some(duid) {
+                        return Err(ApiError::new("duid_not_verified"));
+                    }
+                    if !profile.covers(duid) {
+                        return Err(ApiError::new("profile_duid_mismatch"));
+                    }
                 }
                 Some(profile)
             }
@@ -1080,6 +1141,8 @@ pub fn diagnostics_report(state: State<'_, AppState>) -> String {
             p.name,
             if p.is_legacy() {
                 "legacy-sdk (needs transfer)"
+            } else if p.is_tizen() {
+                "ready, tizen certificate"
             } else {
                 "ready"
             },

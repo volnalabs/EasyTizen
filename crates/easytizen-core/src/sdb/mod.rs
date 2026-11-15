@@ -414,7 +414,18 @@ pub fn install_wgt(
             return Err(e);
         }
     };
-    let verdict = classify_install_output(&log);
+    let mut verdict = classify_install_output(&log);
+
+    // Older TVs (Tizen 4) answer "install failed[118012]" — a certificate-check failure —
+    // also when the app is already installed with another signature. Removing the old copy
+    // is then what helps, so report that when the TV's app list shows the app.
+    if tv && verdict == InstallVerdict::Failed(InstallFailure::CertificateRejected) {
+        if let Ok(list) = client.shell("0 vd_applist", Duration::from_secs(30)) {
+            if app_list_contains(&list, app_id, package_id) == Some(true) {
+                verdict = InstallVerdict::Failed(InstallFailure::AuthorMismatch);
+            }
+        }
+    }
 
     let mut in_app_list = None;
     let mut launched = None;

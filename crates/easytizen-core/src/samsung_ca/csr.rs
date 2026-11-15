@@ -32,7 +32,7 @@ pub fn is_valid_duid(duid: &str) -> bool {
 }
 
 /// Escapes a value for an RFC 4514 distinguished-name string.
-fn escape_dn_value(value: &str) -> String {
+pub(crate) fn escape_dn_value(value: &str) -> String {
     let mut out = String::new();
     for (i, ch) in value.chars().enumerate() {
         if matches!(ch, ',' | '+' | '"' | '\\' | '<' | '>' | ';' | '=')

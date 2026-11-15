@@ -57,9 +57,14 @@ export interface OpenedPackage { path: string; report: PackageReport }
 export interface SavedDevice { ip: string; port: number; name: string; duid: string | null; model: string | null; tizen_version: string | null; last_connected: number | null }
 /** "sdk": made by an older version through the Tizen SDK — must be transferred once before use. */
 export type CertStore = "sdk" | "builtin";
+/** "samsung": issued by Samsung after sign-in, bound to TVs (DUIDs) · "tizen": the Tizen SDK's own developer
+ * certificate, no account and no DUID — accepted by TVs before Tizen 7. */
+export type CertKind = "samsung" | "tizen";
 export interface CertificateProfile {
   name: string; identity: string; duids: string[]; engine: CertStore;
   created_at: number | null; expires_at: number | null; imported: boolean;
+  /** Missing in data from older versions: treat as "samsung". */
+  kind?: CertKind;
 }
 export interface Settings {
   theme: "system" | "light" | "dark"; language: "auto" | "ru" | "en";
@@ -80,7 +85,7 @@ export interface InstallResult {
 }
 export type InstallStage = "signing" | "connecting" | "uploading" | "installing" | "verifying" | "launching";
 export interface InstallProgress { op_id: string | null; stage: InstallStage; fraction: number }
-export type CertStage = "signin" | "author" | "distributor" | "saving";
+export type CertStage = "signin" | "author" | "distributor" | "saving" | "download" | "reading";
 export interface CertProgress { op_id: string | null; stage: CertStage; url: string | null }
 export interface HistoryEntry {
   time: number; app_name: string | null; app_id: string | null; version: string | null; file_name: string;

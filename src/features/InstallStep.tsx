@@ -4,8 +4,8 @@ import { useApp } from "../app/context";
 import { Button, Details, Field, IconTile, Modal, Notice, Progress, Spinner, Toggle } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import type { Key } from "../i18n";
-import { daysLeft, opId } from "../lib/format";
-import { prefersOriginalSignature } from "../lib/tv";
+import { opId } from "../lib/format";
+import { isTizenProfile, prefersOriginalSignature, prefersTizenCertificate, profileFitsTv } from "../lib/tv";
 import { api, on, toApiError } from "../services/api";
 import type { ApiError, ExtraChecks, InstallProgress, InstallResult, InstallStage, OpenedPackage, TvInfo } from "../types";
 import { CreateCertificateDialog, ImportCertificateDialog } from "./CertDialogs";
@@ -37,9 +37,13 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
 }) {
   const { t, err } = useI18n();
   const { settings, setBusy: markBusy, go } = useApp();
+  // On TVs before Tizen 7 the Tizen certificate (no Samsung account) comes first.
+  const tizenFirst = prefersTizenCertificate(tv.tizen_version);
   const profiles = useMemo(
-    () => settings.certificate_profiles.filter((p) => p.engine === "builtin" && !!tv.duid && p.duids.some((d) => d.toLowerCase() === tv.duid!.toLowerCase()) && (daysLeft(p.expires_at) ?? 1) >= 0),
-    [settings.certificate_profiles, tv.duid],
+    () => settings.certificate_profiles
+      .filter((p) => profileFitsTv(p, tv))
+      .sort((a, b) => (Number(isTizenProfile(b)) - Number(isTizenProfile(a))) * (tizenFirst ? 1 : -1)),
+    [settings.certificate_profiles, tv, tizenFirst],
   );
   const legacy = useMemo(
     () => settings.certificate_profiles.some((p) => p.engine === "sdk" && !!tv.duid && p.duids.some((d) => d.toLowerCase() === tv.duid!.toLowerCase())),
@@ -73,7 +77,8 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
   const willSign = resign || !alreadySigned;
   const checksOff = !!checks && !checks.enabled;
   const blocked = !!checks?.enabled && checks.findings.some((f) => f.blocking);
-  const canInstall = !busy && !checksLoading && !blocked && (willSign ? !!profile && !!tv.duid : true);
+  const chosen = profiles.find((p) => p.name === profile);
+  const canInstall = !busy && !checksLoading && !blocked && (willSign ? !!chosen && (isTizenProfile(chosen) || !!tv.duid) : true);
 
   const install = async (withPassword: string | null = null, asIs = false) => {
     const sign = willSign && !asIs;
@@ -165,15 +170,15 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
 
   return (
     <div className="space-y-4">
-      {!tv.duid && willSign && <Notice tone="warn">{t("tvNoDuid")}</Notice>}
+      {!tv.duid && willSign && !tizenFirst && <Notice tone="warn">{t("tvNoDuid")}</Notice>}
       {alreadySigned && <Toggle checked={resign} onChange={onResign} label={t("installResign")}
         description={prefersOriginalSignature(tv.tizen_version, alreadySigned) ? t("installResignHintOldTv", { tizen: tv.tizen_version ?? "" }) : t("installResignHint")} />}
 
-      {willSign && tv.duid && (profiles.length > 0 ? (
+      {willSign && (tv.duid || tizenFirst) && (profiles.length > 0 ? (
         <Field label={t("installCert")} htmlFor="install-cert">
           <div className="flex gap-2">
             <select id="install-cert" value={profile} onChange={(e) => setProfile(e.target.value)} className="input min-w-0 flex-1">
-              {profiles.map((p) => <option key={p.name} value={p.name}>{p.name} · {p.identity}</option>)}
+              {profiles.map((p) => <option key={p.name} value={p.name}>{p.name} · {isTizenProfile(p) ? t("certKindTizenShort") : p.identity}</option>)}
             </select>
             <Button onClick={() => setDialog("create")} aria-label={t("installCertCreate")} title={t("installCertCreate")}><KeyRound size={16} aria-hidden /></Button>
           </div>
@@ -184,7 +189,7 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
             <IconTile><KeyRound size={20} aria-hidden /></IconTile>
             <div className="min-w-0 flex-1">
               <p className="font-semibold">{t("installCertNone")}</p>
-              <p className="mt-0.5 text-small text-muted">{legacy ? t("installCertLegacy") : t("installCertNoneBody")}</p>
+              <p className="mt-0.5 text-small text-muted">{legacy ? t("installCertLegacy") : tizenFirst ? t("installCertNoneBodyTizen", { tizen: tv.tizen_version ?? "" }) : t("installCertNoneBody")}</p>
             </div>
           </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:pl-[3.25rem]">
@@ -221,7 +226,7 @@ export function InstallStep({ tv, pkg, resign, onResign, checks, checksLoading, 
         {willSign && <p className="mt-2.5 text-small text-muted">{t("installOriginalSafe")}</p>}
       </div>
 
-      {dialog === "create" && <CreateCertificateDialog preselectDuid={tv.duid} onClose={() => setDialog(null)} onCreated={(p) => { setDialog(null); setProfile(p.name); }} />}
+      {dialog === "create" && <CreateCertificateDialog preselectDuid={tv.duid} tizenVersion={tv.tizen_version} onClose={() => setDialog(null)} onCreated={(p) => { setDialog(null); setProfile(p.name); }} />}
       {dialog === "import" && <ImportCertificateDialog onClose={() => setDialog(null)} onImported={(p) => { setDialog(null); setProfile(p.name); }} />}
       {confirmSkip && <SkipChecksDialog onCancel={() => setConfirmSkip(false)} onConfirm={() => { setConfirmSkip(false); skipConfirmed.current = true; void install(); }} />}
       {askPassword && (

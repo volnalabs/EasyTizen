@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { en } from "../i18n/en";
 import type { FoundTv, SavedDevice, TvCheck } from "../types";
-import { DIAGNOSIS_STEPS, mergeTvs, readiness, STATUS_TONE, statusKey } from "./tv";
+import { DIAGNOSIS_STEPS, mergeTvs, prefersTizenCertificate, profileFitsTv, readiness, STATUS_TONE, statusKey } from "./tv";
 
 const base: TvCheck = {
   ip: "192.168.1.57", port: 26101, host_ip: "192.168.1.23", interface: "wlan0", same_network: true, reachable: true,
@@ -86,5 +86,34 @@ describe("signature choice by Tizen version", () => {
     // Unsigned files must be signed; an unknown version keeps the safe default (re-sign).
     expect(prefersOriginalSignature("4.0", false)).toBe(false);
     expect(prefersOriginalSignature(null, true)).toBe(false);
+  });
+});
+
+describe("which certificate fits a TV", () => {
+  const samsung = { engine: "builtin", kind: "samsung", duids: ["DUID1234"], expires_at: 2_000_000_000 };
+  const tizen = { engine: "builtin", kind: "tizen", duids: [], expires_at: 1_000 };
+  const old = { duid: "duid1234", tizen_version: "4.0" };
+  const modern = { duid: "OTHER999", tizen_version: "8.0" };
+
+  it("uses the Tizen certificate before Tizen 7 and Samsung's from Tizen 7 on", () => {
+    expect(prefersTizenCertificate("4.0")).toBe(true);
+    expect(prefersTizenCertificate("6.5")).toBe(true);
+    expect(prefersTizenCertificate("7.0")).toBe(false);
+    expect(prefersTizenCertificate(null)).toBe(false);
+  });
+
+  it("a Tizen certificate fits any older TV, even past its date and without a DUID", () => {
+    expect(profileFitsTv(tizen, old, 1_900_000_000)).toBe(true);
+    expect(profileFitsTv(tizen, { duid: null, tizen_version: "5.5" })).toBe(true);
+    expect(profileFitsTv(tizen, modern)).toBe(false);
+    expect(profileFitsTv(tizen, { duid: null, tizen_version: null }), "unknown version: offered").toBe(true);
+  });
+
+  it("a Samsung certificate fits only the TVs it names while valid", () => {
+    expect(profileFitsTv(samsung, old, 1_900_000_000)).toBe(true);
+    expect(profileFitsTv(samsung, modern)).toBe(false);
+    expect(profileFitsTv(samsung, old, 2_100_000_000), "expired").toBe(false);
+    expect(profileFitsTv({ ...samsung, kind: undefined }, old, 1_900_000_000), "older data without a kind").toBe(true);
+    expect(profileFitsTv({ ...samsung, engine: "sdk" }, old)).toBe(false);
   });
 });

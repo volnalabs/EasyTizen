@@ -9,7 +9,7 @@ use crate::api::{
     fail, remember_device, success, ApiError, ApiResult, ConnectOutcome, CreateCertificateArgs,
     ImportCertificateArgs, InstallJob, InstallResult, Outcome, ScanData, TvInfo,
 };
-use crate::settings::{Engine, SavedCertificateProfile};
+use crate::settings::{CertKind, Engine, SavedCertificateProfile};
 use crate::{applog, AppState};
 use easytizen_core::cancel::CancelToken;
 use easytizen_core::diagnostics::Diagnosis;
@@ -17,6 +17,7 @@ use easytizen_core::discovery::{self, CheckOptions, DiscoverOptions, FoundTv, Tv
 use easytizen_core::samsung_ca::{self, api::CaClient, oauth::OAuthSession, CaError};
 use easytizen_core::sdb::{self, InstallFailure, InstallStage, InstallVerdict, SdbError};
 use easytizen_core::sign::{sign_wgt, IdentityError, SignError, SigningIdentity};
+use easytizen_core::tizen_cert::{self, TizenCertError};
 use serde::Serialize;
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
@@ -326,9 +327,137 @@ fn profile_from(
         identity.to_string(),
         distributor.info.duids.clone(),
     );
-    profile.expires_at = Some(author.info.not_after.min(distributor.info.not_after));
     profile.imported = imported;
+    if distributor.info.duids.is_empty() && tizen_cert::is_sdk_distributor(&distributor.info.issuer)
+    {
+        // The SDK's public distributor signer expired long ago and TVs before Tizen 7 do not
+        // check it; only the author certificate's date is meaningful.
+        profile.kind = CertKind::Tizen;
+        profile.expires_at = Some(author.info.not_after);
+    } else {
+        profile.expires_at = Some(author.info.not_after.min(distributor.info.not_after));
+    }
     profile
+}
+
+/// Whether `distributor` is usable as a profile's distributor certificate.
+fn acceptable_distributor(distributor: &SigningIdentity) -> bool {
+    !distributor.info.duids.is_empty() || tizen_cert::is_sdk_distributor(&distributor.info.issuer)
+}
+
+fn tizen_cert_error(e: TizenCertError) -> ApiError {
+    match e {
+        TizenCertError::Network(reason) => ApiError::with("tizen_cert_download_failed", reason),
+        TizenCertError::NotThePackage => ApiError::new("tizen_cert_not_package"),
+        TizenCertError::Mismatch => ApiError::new("tizen_cert_mismatch"),
+        TizenCertError::InvalidName => ApiError::new("invalid_identity"),
+        TizenCertError::Crypto => ApiError::new("cert_create_failed"),
+        TizenCertError::Identity(e) => identity_error(e),
+    }
+}
+
+/// Creates a Tizen certificate profile: no Samsung account, no DUID. The SDK's certificate
+/// package is downloaded from download.tizen.org, or read from a copy the user picked, and
+/// checked against pinned hashes. Only the new profile's two keystores are kept.
+pub async fn create_tizen_certificate(
+    app: &AppHandle,
+    state: &AppState,
+    args: &crate::api::CreateTizenCertificateArgs,
+    op_id: Option<String>,
+    cancel: CancelToken,
+) -> ApiResult<SavedCertificateProfile> {
+    let dir = profile_dir(&state.data_dir, &args.profile_name);
+    let scratch = state
+        .cache_dir
+        .join("import")
+        .join("certificate-generator.zip");
+    let (name, identity, password, source) = (
+        args.profile_name.clone(),
+        args.identity.clone(),
+        args.password.clone(),
+        args.package_source.clone(),
+    );
+    let app = app.clone();
+    let worker_password = password.clone();
+    let profile =
+        tauri::async_runtime::spawn_blocking(move || -> ApiResult<SavedCertificateProfile> {
+            let password = worker_password;
+            let emit = |stage: &'static str| {
+                let _ = app.emit(
+                    "cert-progress",
+                    CertProgress {
+                        op_id: op_id.clone(),
+                        stage,
+                        url: None,
+                    },
+                );
+            };
+            let package = match source {
+                Some(source) => {
+                    emit("reading");
+                    if let Some(parent) = scratch.parent() {
+                        std::fs::create_dir_all(parent).map_err(|_| ApiError::new("io_error"))?;
+                    }
+                    let copied = crate::api::copy_picked_file(
+                        &app,
+                        &source,
+                        &scratch,
+                        tizen_cert::MAX_PACKAGE_BYTES,
+                    );
+                    let bytes = copied.and_then(|_| {
+                        std::fs::read(&scratch).map_err(|_| ApiError::new("io_error"))
+                    });
+                    let _ = std::fs::remove_file(&scratch);
+                    bytes.map_err(|e| {
+                        if e.code == "pkg_too_large" {
+                            ApiError::new("tizen_cert_not_package")
+                        } else {
+                            e
+                        }
+                    })?
+                }
+                None => {
+                    emit("download");
+                    tizen_cert::download_package(Duration::from_secs(180))
+                        .map_err(tizen_cert_error)?
+                }
+            };
+            if cancel.is_cancelled() {
+                return Err(ApiError::new("cancelled"));
+            }
+            emit("author");
+            let signers = tizen_cert::read_package(&package, &tizen_cert::SDK_PINS)
+                .map_err(tizen_cert_error)?;
+            let created = signers
+                .create_profile(&identity, &password, crate::now_secs())
+                .map_err(tizen_cert_error)?;
+            let author = SigningIdentity::from_p12(&created.author_p12, &password)
+                .map_err(identity_error)?;
+            let distributor = SigningIdentity::from_p12(&created.distributor_p12, &password)
+                .map_err(identity_error)?;
+            if cancel.is_cancelled() {
+                return Err(ApiError::new("cancelled"));
+            }
+            emit("saving");
+            write_private(&dir.join(AUTHOR_FILE), &created.author_p12)
+                .map_err(|_| ApiError::new("io_error"))?;
+            write_private(&dir.join(DISTRIBUTOR_FILE), &created.distributor_p12)
+                .map_err(|_| ApiError::new("io_error"))?;
+            let profile = profile_from(&name, &identity, &author, &distributor, false);
+            if !profile.is_tizen() {
+                let _ = std::fs::remove_dir_all(&dir);
+                return Err(ApiError::new("tizen_cert_mismatch"));
+            }
+            Ok(profile)
+        })
+        .await
+        .map_err(|_| ApiError::new("internal"))??;
+    state
+        .passwords
+        .lock()
+        .unwrap()
+        .insert(profile.name.clone(), password);
+    Ok(profile)
 }
 
 pub async fn create_certificate(
@@ -466,7 +595,7 @@ pub async fn import_certificate(
                     code: format!("distributor_{}", identity_error(e).code),
                     detail: None,
                 })?;
-            if distributor.info.duids.is_empty() {
+            if !acceptable_distributor(&distributor) {
                 return Err(ApiError::new("not_a_distributor_certificate"));
             }
             if !author.info.duids.is_empty() {
@@ -594,7 +723,7 @@ pub async fn transfer_legacy_certificate(
                 .map_err(identity_error)?;
             let distributor = SigningIdentity::from_p12(&read(DISTRIBUTOR_FILE)?, &password)
                 .map_err(identity_error)?;
-            if distributor.info.duids.is_empty() {
+            if !acceptable_distributor(&distributor) {
                 return Err(ApiError::new("not_a_distributor_certificate"));
             }
             // Copies in EasyTizen's own store; the SDK's files are left exactly as they were.
@@ -724,19 +853,25 @@ pub async fn install(
                 let distributor = load(DISTRIBUTOR_FILE)?;
                 verified_password = Some((profile.name.clone(), password.clone()));
                 let now = crate::now_secs();
-                if author.info.not_after < now || distributor.info.not_after < now {
+                // A Tizen certificate's distributor signer expired years ago; TVs before
+                // Tizen 7 do not check its date (nor, as far as known, the author's), so the
+                // TV decides. A Samsung certificate must still be valid.
+                if !profile.is_tizen()
+                    && (author.info.not_after < now || distributor.info.not_after < now)
+                {
                     return Err(ApiError::new("cert_expired"));
                 }
-                let covered = duid
-                    .as_deref()
-                    .map(|d| {
-                        distributor
-                            .info
-                            .duids
-                            .iter()
-                            .any(|c| c.eq_ignore_ascii_case(d))
-                    })
-                    .unwrap_or(false);
+                let covered = profile.is_tizen()
+                    || duid
+                        .as_deref()
+                        .map(|d| {
+                            distributor
+                                .info
+                                .duids
+                                .iter()
+                                .any(|c| c.eq_ignore_ascii_case(d))
+                        })
+                        .unwrap_or(false);
                 if !covered {
                     return Err(ApiError::new("profile_duid_mismatch"));
                 }

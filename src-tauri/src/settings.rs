@@ -33,6 +33,18 @@ pub enum Engine {
     Builtin,
 }
 
+/// Which kind of certificate a profile holds.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CertKind {
+    /// Issued by Samsung after signing in; the distributor certificate names specific TVs.
+    #[default]
+    Samsung,
+    /// Made from the Tizen SDK's own developer CA and public distributor signer: no Samsung
+    /// account and no DUID. Accepted by TVs before Tizen 7 in Developer Mode.
+    Tizen,
+}
+
 /// Public metadata of a signing profile. Keys and passwords live elsewhere.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SavedCertificateProfile {
@@ -53,6 +65,8 @@ pub struct SavedCertificateProfile {
     pub expires_at: Option<i64>,
     #[serde(default)]
     pub imported: bool,
+    #[serde(default)]
+    pub kind: CertKind,
 }
 
 impl SavedCertificateProfile {
@@ -66,10 +80,15 @@ impl SavedCertificateProfile {
             created_at: Some(crate::now_secs()),
             expires_at: None,
             imported: false,
+            kind: CertKind::Samsung,
         }
     }
+    /// A Tizen certificate is not bound to TVs; a Samsung one only to the DUIDs it names.
     pub fn covers(&self, duid: &str) -> bool {
-        self.duids.iter().any(|d| d.eq_ignore_ascii_case(duid))
+        self.kind == CertKind::Tizen || self.duids.iter().any(|d| d.eq_ignore_ascii_case(duid))
+    }
+    pub fn is_tizen(&self) -> bool {
+        self.kind == CertKind::Tizen
     }
     /// Keys still in an old Tizen SDK keystore (must be transferred before use).
     pub fn is_legacy(&self) -> bool {
@@ -136,7 +155,7 @@ pub fn load(dir: &Path) -> Settings {
         .unwrap_or_default();
     for profile in &mut settings.certificate_profiles {
         if let Some(duid) = profile.duid.take() {
-            if !profile.covers(&duid) {
+            if !profile.duids.iter().any(|d| d.eq_ignore_ascii_case(&duid)) {
                 profile.duids.push(duid);
             }
         }
@@ -256,6 +275,27 @@ mod tests {
             text.contains("tizen-studio"),
             "the old SDK location is kept for certificate transfer"
         );
+    }
+
+    #[test]
+    fn profiles_without_a_kind_are_samsung_ones() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(
+            file(d.path()),
+            r#"{"certificate_profiles":[{"name":"Old","identity":"Me","duids":["A1B2C3D4"],"engine":"builtin"},
+               {"name":"T","identity":"Me","duids":[],"engine":"builtin","kind":"tizen"}]}"#,
+        )
+        .unwrap();
+        let s = load(d.path());
+        let (old, tizen) = (&s.certificate_profiles[0], &s.certificate_profiles[1]);
+        assert_eq!(old.kind, CertKind::Samsung);
+        assert!(old.covers("a1b2c3d4") && !old.covers("OTHER123"));
+        assert!(
+            tizen.is_tizen() && tizen.covers("ANY12345"),
+            "a Tizen certificate is for any TV"
+        );
+        save(d.path(), &s).unwrap();
+        assert!(load(d.path()).certificate_profiles[1].is_tizen());
     }
 
     #[test]

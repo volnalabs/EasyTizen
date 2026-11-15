@@ -4,6 +4,7 @@ import { useApp } from "../app/context";
 import { Button, DataList, EmptyState, Field, IconButton, IconTile, Modal, PageHeader, Pill, Row, useToast } from "../components/ui";
 import { useI18n } from "../hooks/i18n";
 import { daysLeft, formatDate } from "../lib/format";
+import { isTizenProfile } from "../lib/tv";
 import { api, toApiError } from "../services/api";
 import type { CertificateProfile } from "../types";
 import { CreateCertificateDialog, ImportCertificateDialog } from "./CertDialogs";
@@ -69,7 +70,9 @@ export function CertificatesPage() {
           {settings.certificate_profiles.map((p) => {
             const days = daysLeft(p.expires_at);
             const legacy = p.engine === "sdk";
-            const expired = days != null && days < 0;
+            const tizen = isTizenProfile(p);
+            // A Tizen certificate is not refused by EasyTizen once its date passes: older TVs do not check it.
+            const expired = !tizen && days != null && days < 0;
             return (
               <li key={p.name} className="card fade-up p-4 sm:p-5">
                 <div className="flex items-start gap-3">
@@ -78,9 +81,11 @@ export function CertificatesPage() {
                     <p className="selectable data text-emph font-semibold">{p.name}</p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {legacy ? <Pill tone="warn">{t("certLegacy")}</Pill>
+                        : tizen && days != null && days < 0 ? <Pill tone="warn">{t("certTizenDatePassed")}</Pill>
                         : expired ? <Pill tone="err">{t("certExpired", { date: formatDate(p.expires_at!, lang) })}</Pill>
                           : days != null && days <= 30 ? <Pill tone="warn">{t("certExpiresSoon", { days })}</Pill>
                             : <Pill tone="ok">{t("certValid")}</Pill>}
+                      <Pill tone="neutral">{t(tizen ? "certKindTizenShort" : "certKindSamsungShort")}</Pill>
                       {p.imported && <Pill tone="neutral">{t("certImported")}</Pill>}
                     </div>
                   </div>
@@ -88,7 +93,7 @@ export function CertificatesPage() {
                 </div>
                 <DataList className="mt-3 border-t border-line">
                   <Row label={t("certAuthor")}>{p.identity}</Row>
-                  <Row label={t("certTvs")}>{p.duids.map(tvName).join(", ")}</Row>
+                  <Row label={t("certTvs")}>{tizen ? t("certTizenAnyTv") : p.duids.map(tvName).join(", ")}</Row>
                   {p.expires_at != null && <Row label={t("certValidUntil")}>{formatDate(p.expires_at, lang)}</Row>}
                 </DataList>
                 {legacy && (
@@ -102,7 +107,7 @@ export function CertificatesPage() {
           })}
         </ul>
       )}
-      {dialog === "create" && <CreateCertificateDialog preselectDuid={tv?.duid} onClose={() => setDialog(null)} onCreated={() => setDialog(null)} />}
+      {dialog === "create" && <CreateCertificateDialog preselectDuid={tv?.duid} tizenVersion={tv?.tizen_version} onClose={() => setDialog(null)} onCreated={() => setDialog(null)} />}
       {dialog === "import" && <ImportCertificateDialog onClose={() => setDialog(null)} onImported={() => setDialog(null)} />}
       {transferring && <TransferDialog profile={transferring} onClose={() => setTransferring(null)} onDone={() => { setTransferring(null); void refresh(); toast("ok", t("certTransferred")); }} />}
       {removing && (
