@@ -1,50 +1,52 @@
 # Hands-on acceptance checklist
 
-**Status: NOT YET EXECUTED.** Record the TV model and year, Tizen version, host device and OS, EasyTizen build and engine for every run. Do not tick a box on the strength of automated tests.
+**Status: NOT YET EXECUTED on a physical TV.** Record the TV model and year, Tizen version, host device and OS, and the EasyTizen build for every run. Do not tick a box on the strength of automated tests.
 
-## A. Android app (built-in engine) — no computer involved
+Preparation: TV and test device on the same router; note the TV's IP (Settings → General → Network → Network Status). Keep a `.wgt` that is known to work (for example a self-built "hello world" web app) and its SHA-256.
 
-- [ ] APK installs on Android 7–16; app starts; welcome guide shows the phone's Wi-Fi address.
-- [ ] "Find TVs" discovers a TV with Developer Mode on; progress bar moves; Cancel works.
-- [ ] Connect by IP works; the TV's DUID and model are shown.
-- [ ] Wrong IP / Developer Mode off / wrong Host PC IP each produce the matching explanation.
-- [ ] Picking a `.wgt` through the system picker shows its details; a non-WGT file is rejected with a clear message.
+## A. Android app — no computer involved
+
+- [ ] APK installs on Android 7–16; app starts; the "Host PC IP for the TV" box shows the phone's Wi-Fi address (compare with Settings → Wi-Fi → network details).
+- [ ] With Wi-Fi off (mobile data only): the box says Wi-Fi is off; "Find TVs" reports "No local network".
+- [ ] Switching to another Wi-Fi and returning to the app updates the address.
+- [ ] "Find TVs" with Developer Mode **off**: the TV is listed as "Developer Mode off" (TV 2016+). Connecting shows the readiness list with Developer Mode ✗.
+- [ ] Developer Mode on with **another** Host PC IP: listed as "Wrong Host PC IP"; the explanation names both addresses.
+- [ ] Developer Mode on with the phone's IP, TV restarted: listed as "Ready" with model and Tizen version; progress bar moves; Cancel stops the search.
+- [ ] Connect by IP works; model, Tizen version and DUID are shown; the TV is saved.
+- [ ] Wrong IP in the same network → "The TV is not answering"; IP of another network → "another network"; `300.1.1.1` → input error.
+- [ ] Picking a `.wgt` through the system picker (Downloads, a cloud folder) shows its details; a non-WGT file is rejected with a clear message; returning from the picker keeps the connected TV.
 - [ ] "Create certificate" opens Samsung sign-in in the browser; after signing in and returning to the app the certificate appears. Note whether the app had to be brought to the foreground manually.
-- [ ] Cancelling during sign-in returns to the form without leftovers; retrying works.
-- [ ] Install: stages advance, upload percentage moves, the app appears on the TV and launches.
+- [ ] Install: stages advance; upload percentage moves; installation percentage moves; "Checking the result"; success says the TV lists the app; **the app appears on the TV and launches**.
+- [ ] Turn Wi-Fi off during the upload: the installation fails with a clear message, history records it, and after reconnecting a retry succeeds.
+- [ ] Cancel during the upload: no app installed; retry works.
 - [ ] After restarting the app, installing asks for the certificate password once; a wrong password is reported as such.
 - [ ] A package signed for TV A is refused by TV B with the "signature rejected" message.
 - [ ] Installing over an app signed by another author offers "Remove the old copy…", which works.
-- [ ] Importing `author.p12` + `distributor.p12` exported from Tizen Studio works.
-- [ ] Rotation, dark/light theme, Russian/English, back gesture, small screens.
-- [ ] System font size at 130 % and larger: nothing overlaps; bottom-bar labels at most shortened.
-- [ ] Self-update with a signed release: Settings → App updates finds it, downloads and verifies it, "Install update" opens Android's installer; after allowing "Install unknown apps" the update installs over the old version and TVs/certificates are kept.
-- [ ] With automatic updates off, no update request is made (check the network log) until "Check now".
+- [ ] Saved TVs: rename, change address, "Check availability", forget — all persist after restarting the app.
+- [ ] History shows app, file, TV, IP, date, time, result and the TV's error text.
+- [ ] Minimise the app during an installation for 30 s and return: the installation finished or failed with a message, never stuck.
+- [ ] Rotation, dark/light theme, Russian/English, back gesture, 320 px width, font size 130 %.
 
-## B. Desktop — official Samsung tools
+## B. Windows 10 and 11 (x64), standard user account
 
-- [ ] Installer works on Windows 10/11, macOS (Apple silicon and Intel), Ubuntu/Debian (`.deb`) and one more distribution (AppImage).
-- [ ] "Install automatically": folder and free space shown; progress by package; Cancel stops all downloads; "Resume" finishes the installation.
-- [ ] Too little disk space and a path with spaces are refused before anything is downloaded.
-- [ ] "Use an existing SDK" accepts a Tizen Studio folder and leaves the user's own Tizen configuration untouched.
-- [ ] Scan, connect, DUID, certificate creation (browser sign-in), signing with `tz`, installation and launch all succeed.
-- [ ] Certificate import through the Samsung certificate manager works.
-- [ ] Upgrade from TV Deploy 0.1: saved TVs, SDK path and profiles are present after first start.
+- [ ] Installer runs without administrator rights; the app starts **without a console window** (also when started from the Start menu and from Explorer).
+- [ ] No console window appears during search, connection, certificate creation, signing, installation or an update.
+- [ ] The Windows firewall prompt appears on the first search (private network allowed); with the network set to "Public" the TCP search still finds the TV.
+- [ ] The same flow as in section A (search, manual IP, diagnostics, certificate, install, verify, launch) succeeds from the computer.
+- [ ] A `.wgt` in a folder with Cyrillic letters and spaces (e.g. `C:\Users\Иван\Мои приложения\Тест app.wgt`) installs; the original file is byte-identical afterwards (compare SHA-256).
+- [ ] Settings → Diagnostics → "Open log folder" opens a folder with `easytizen.log`; the log contains the search and installation lines and no passwords or tokens.
+- [ ] Two network adapters (Ethernet + Wi-Fi) or a VPN: the Host PC IP shown is the LAN address; the search finds the TV.
+- [ ] Upgrade from 0.9.x with an SDK-engine certificate: the profile shows "Needs transfer"; "Transfer" with the password moves it and installation works; the Tizen SDK folder is unchanged.
 
-## C. Desktop — built-in engine
+## C. macOS and Linux
 
-- [ ] Switching the engine in Settings works; certificates of the other engine are shown as unavailable.
-- [ ] The same end-to-end flow as in section A succeeds from a computer.
+- [ ] `.dmg` (Apple silicon, Intel), `.deb` and AppImage install and start; the section A flow succeeds.
 
 ## D. Cross-cutting
 
 - [ ] Additional checks on (default): a package with a native executable or a broken app ID is blocked with an explanation; a clean package installs.
 - [ ] Turning the additional checks off asks for confirmation; every installation then asks to confirm; a zip-slip or DTD package is still refused.
-- [ ] Desktop self-update with a signed release: download, signature check, restart (macOS/AppImage) or installer (Windows/.deb) after confirmation; never while a TV installation runs; settings and certificates kept.
+- [ ] Self-update with a signed release (desktop and Android): found, downloaded, verified, applied after confirmation; never while a TV installation runs; TVs, certificates and settings kept.
 - [ ] Keyboard only: every control reachable, visible focus, dialogs keep focus inside and return it.
-
-- [ ] Original `.wgt` is byte-identical after installation (compare SHA-256).
-- [ ] History lists successes and failures with the TV's message; Clear works.
 - [ ] Diagnostics report contains no passwords, tokens or full DUIDs; Copy and Save work.
-- [ ] Update banner appears when a newer release exists and links to the right installer.
 - [ ] Release workflow publishes exactly six installers plus `SHA256SUMS.txt`; every `releases/latest/download/…` link in the README downloads a file.

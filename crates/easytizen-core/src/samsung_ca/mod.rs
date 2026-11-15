@@ -1,7 +1,8 @@
 //! Issuing Samsung developer certificates without the Tizen SDK.
 //!
-//! This is a Rust port of the flow implemented by Samsung's own open-source CLI (vendored in
-//! `resources/samsung-cli/lib/core/samsung-{auth,api,cert}.js`, Apache-2.0):
+//! This is a Rust port of the flow implemented by Samsung's own open-source CLI
+//! (`Samsung/tizen-agent-skills`, `samsung-{auth,api,cert}.js`, Apache-2.0); the same flow is
+//! used by the independent `tizen-app-installer-cli`:
 //!
 //! 1. the user signs in to their Samsung Account in the system browser; Samsung redirects
 //!    the result to a loopback address this app listens on ([`oauth`]);

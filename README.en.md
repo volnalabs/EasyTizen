@@ -25,7 +25,9 @@
 </div>
 
 > [!IMPORTANT]
-> **Status: preview 0.9.** Every feature is implemented and covered by automated tests, but installation on a **physical Samsung TV** and operation on a **real Android device** have not yet been confirmed by the author. What was verified and how is listed in the [test report](docs/TEST-REPORT.md); what still needs hands-on verification is in the [checklist](docs/ACCEPTANCE-CHECKLIST.md).
+> **Status: preview.** Every feature is implemented and covered by automated tests (including tests against a protocol-level TV emulator), but installation on a **physical Samsung TV** and operation on a **real Android device** have not yet been confirmed by the author. What was verified and how is listed in the [test report](docs/TEST-REPORT.md); what still needs hands-on verification is in the [checklist](docs/ACCEPTANCE-CHECKLIST.md).
+
+EasyTizen works right after installation: **no Tizen SDK, no Tizen Studio, no Node.js or Python, no 15 GB download.** TV discovery, Samsung certificates, signing and `.wgt` installation are done by its own built-in engine — the same on Windows, macOS, Linux and Android.
 
 EasyTizen is an independent open-source tool. It ships no TV apps and downloads none for you: you always choose the `.wgt` file yourself.
 
@@ -68,15 +70,15 @@ The links always point at the latest version. Not sure which one to take? See [I
 <img src="docs/readme/f-phone.svg" width="52" height="52" align="left" alt="">
 
 **Works straight from a phone**<br>
-The Android app does everything itself: no computer, no Tizen SDK, no Termux.
+The Android app does everything itself — search, certificate, signing, installation — no computer, no Termux.
 
 </td>
 <td width="50%" valign="top">
 
 <img src="docs/readme/f-sdk.svg" width="52" height="52" align="left" alt="">
 
-**Automatic SDK setup**<br>
-On desktop it downloads the official Tizen SDK for you: progress, cancel, resume, folder choice.
+**Nothing else to download**<br>
+Its own engine: no Tizen SDK, no Tizen Studio, no external programs. Install it and start.
 
 </td>
 </tr>
@@ -86,15 +88,15 @@ On desktop it downloads the official Tizen SDK for you: progress, cancel, resume
 <img src="docs/readme/f-scan.svg" width="52" height="52" align="left" alt="">
 
 **Finds TVs on the network**<br>
-Discovers TVs with Developer Mode enabled on your home network.
+All network interfaces, SSDP and Samsung's device service: finds TVs even with Developer Mode off and says what to set up.
 
 </td>
 <td width="50%" valign="top">
 
 <img src="docs/readme/f-ip.svg" width="52" height="52" align="left" alt="">
 
-**Connect by IP**<br>
-Search didn't help? Type the address. On failure it explains why and what to check.
+**Connect by IP, with diagnostics**<br>
+Checks the network, Developer Mode and Host PC IP one by one and says exactly what to fix.
 
 </td>
 </tr>
@@ -147,8 +149,8 @@ Signs a temporary copy with your certificate. Your original file is never change
 
 <img src="docs/readme/f-install.svg" width="52" height="52" align="left" alt="">
 
-**Installs and launches**<br>
-Sends the package to the TV, shows each stage and starts the app.
+**Installs, verifies and launches**<br>
+Streams the package with real progress, shows the TV's own install progress, checks the TV's app list, starts the app.
 
 </td>
 </tr>
@@ -274,9 +276,13 @@ Install EasyTizen on your device first, then prepare the TV and run your first i
 
 | | Android | Desktop |
 |---|---|---|
-| Extra downloads | none | Tizen SDK, about 15 GB (EasyTizen fetches it) — or none with the built-in engine |
-| Who signs and installs | EasyTizen's built-in engine | official Samsung tools (default) or the built-in engine |
+| Extra downloads | none | none |
+| Who signs and installs | EasyTizen's built-in engine | EasyTizen's built-in engine |
 | Samsung Account | needed for the certificate | needed for the certificate |
+| Network | Wi-Fi, the TV's network | Wi-Fi or cable, the TV's network |
+
+> [!IMPORTANT]
+> **The computer or phone and the TV must reach each other on one local network** — connected to the same router (Wi-Fi or cable). These do not work: mobile data on the phone, guest Wi-Fi, a network with client isolation, a VPN that captures all traffic, or a second router that creates a separate network. EasyTizen shows its own address and warns when the TV is in another network.
 
 <a name="android"></a>
 
@@ -287,10 +293,11 @@ A phone or tablet with Android 7.0 or newer. No computer needed.
 1. Download [`EasyTizen-Android.apk`](https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Android.apk) on the phone.
 2. Open the file. If Android asks about “unknown sources”, allow installation for the browser or file manager you open it from.
 3. Start EasyTizen and go through the welcome guide. The phone must be on the same Wi-Fi network as the TV (not mobile data, not a guest network).
+4. **The TV's Host PC IP is the phone's address**, not a computer's. EasyTizen shows it above the “Find TVs” button and refreshes it when you return to the app after switching Wi-Fi networks.
 
 | Permission | Why |
 |---|---|
-| Network access | talking to the TV on the local network and to Samsung's certificate service |
+| Network access | talking to the TV on the local network (ports `26101` and `8001`) and to Samsung's certificate service |
 | Network and Wi-Fi state | knowing the phone is online before searching for TVs |
 
 No other permissions are requested: the `.wgt` file is picked through the system document picker.
@@ -308,7 +315,9 @@ Windows 10 and 11, 64-bit.
 
 1. Download [`EasyTizen-Windows-x64-Setup.exe`](https://github.com/volnalabs/TV-Deploy/releases/latest/download/EasyTizen-Windows-x64-Setup.exe) and run it.
 2. It installs for the current user; administrator rights are not required.
-3. On the first TV connection Windows may ask about network access — allow it for private networks.
+3. On the first TV search Windows may ask about network access — allow it for **private** networks. If your home network is marked “Public”, the firewall may block discovery (SSDP) — switch it to “Private” in the network settings.
+
+The app starts like any Windows program, without a black console window. Errors go to a log file — **Settings → Diagnostics → “Open log folder”**.
 
 > [!NOTE]
 > Until the installer is signed with a publisher certificate, SmartScreen shows “Windows protected your PC”. Click **More info → Run anyway**. Whether a particular release is signed is stated in its release notes.
@@ -332,8 +341,6 @@ xattr -cr /Applications/EasyTizen.app
 ```
 
 > [!IMPORTANT]
-> For the “Official Samsung tools” mode the Tizen SDK installer needs Bash 4 or newer, while macOS ships Bash 3.2. Install a current one: `brew install bash`. The built-in engine does not need Bash.
-
 <sub><a href="#install">↑ back to devices</a></sub>
 
 <a name="linux"></a>
@@ -369,7 +376,9 @@ Samsung TVs do not install apps from a USB stick. An app that is not in the stor
 
 #### <img src="docs/readme/step-1.svg" width="28" height="28" align="top" alt="Step 1"> Find the address of the device running EasyTizen
 
-EasyTizen shows it: in the welcome guide and behind the **“How to enable Developer Mode”** link in the “Your TV” block. It looks like `192.168.1.23` — the TV will trust this address.
+EasyTizen shows it — in the **“Host PC IP for the TV”** box above the search button, in the welcome guide and in **“How to enable Developer Mode”**. It looks like `192.168.1.23` — the TV will trust this address. Installing from a phone, it is the phone's address; from a computer, the computer's. The TV remembers only one.
+
+To look it up yourself: Windows — `ipconfig` (the “IPv4 Address” of the Wi-Fi or Ethernet adapter); macOS — System Settings → Network; Linux — `ip -4 addr`; Android — Settings → Wi-Fi → your network → IP address.
 
 #### <img src="docs/readme/step-2.svg" width="28" height="28" align="top" alt="Step 2"> Turn Developer Mode on
 
@@ -391,13 +400,18 @@ Hold the power button on the remote until the TV turns off and on again. Apps wi
 
 <br>
 
+EasyTizen checks every condition separately and shows a “What was checked” list: this device's network, whether the TV is in the same network, whether it answers, whether Developer Mode is on, which Host PC IP the TV has, whether the installation port is open and whether the TV accepts the connection. Developer Mode and Host PC IP are read from the TV itself (Samsung's device service on port `8001`) — the app never claims what it could not check.
+
 | What happens | What to check |
 |---|---|
-| Search does not find the TV | TV is on · Developer Mode is on · both devices are on the same, non-guest network · try entering the address |
-| “The TV is there, but it refuses developer connections” | Host PC IP is the address of this very device · the TV was restarted after the change |
-| It worked before, not now | The phone's or computer's address changed — enter the new one as Host PC IP and restart the TV |
+| “No Samsung TV found on this network” | The TV is on and not in deep standby · both devices on the same, non-guest network · VPN off · enter the address manually |
+| “Developer Mode off” | The TV itself reported Developer Mode off — turn it on (step 2) |
+| “Wrong Host PC IP” / “The TV expects another device” | The TV has another device's address — EasyTizen shows both. Enter the right one and restart the TV |
+| “The TV closed the connection” | TVs do this when Host PC IP does not match. Enter this device's address, turn Developer Mode off and on, restart the TV |
+| “The TV seems to be in another network” | The TV's address is outside this device's network — check it and connect both devices to the same router |
+| It worked before, not now | The phone's or computer's address changed — enter the new one as Host PC IP and restart the TV. The TV's address may have changed too: “TVs” → “Change address” |
 | Host PC IP is saved backwards | Some firmwares with right-to-left languages need the address entered in reverse |
-| Firewall | Allow EasyTizen outgoing connections to port `26101` |
+| Firewall | Allow EasyTizen outgoing connections to ports `26101` and `8001` on the local network |
 
 </details>
 
@@ -407,23 +421,15 @@ Hold the power button on the remote until the TV turns off and on again. Apps wi
 
 ### <img src="docs/readme/s-first.svg" width="28" height="28" align="top" alt=""> Your first installation
 
-#### <img src="docs/readme/step-1.svg" width="28" height="28" align="top" alt="Step 1"> Prepare the tools (desktop only)
+Nothing to prepare: EasyTizen works right after installation on every platform.
 
-On first launch choose how EasyTizen should work:
+#### <img src="docs/readme/step-1.svg" width="28" height="28" align="top" alt="Step 1"> Find the TV
 
-| | Official Samsung tools | Built-in engine |
-|---|---|---|
-| Download | Tizen SDK and Samsung TV Extension, about 15 GB | nothing |
-| Setup time | 10–40 minutes | immediate |
-| Status | recommended | experimental |
+Click **“Find TVs”**. EasyTizen detects the active network interfaces (Wi-Fi, Ethernet; VPN, virtual machines and mobile data are skipped), probes its local network in parallel and lists TVs as they are confirmed: name, IP, model, Tizen version and status — “Ready”, “Developer Mode off”, “Wrong Host PC IP”. The search can be cancelled and usually takes 3–6 seconds.
 
-For the official tools click **“Install automatically”**: EasyTizen shows the folder and free space, per-package progress, and lets you cancel and resume later. Already have Tizen Studio? Click **“Use an existing SDK”**.
+#### <img src="docs/readme/step-2.svg" width="28" height="28" align="top" alt="Step 2"> Connect — or enter the IP
 
-There is no such step on Android.
-
-#### <img src="docs/readme/step-2.svg" width="28" height="28" align="top" alt="Step 2"> Connect the TV
-
-Click **“Find TVs”** or type the address and click **“Connect”**. EasyTizen then shows the model and device ID (DUID) and remembers the TV.
+Click **“Connect”** next to a found TV. Not in the list? Type its address (for example `192.168.1.100`) in the field on the right and click **“Connect”**. EasyTizen checks the address, reachability, Developer Mode and Host PC IP, reads the model, Tizen version and device ID (DUID) and saves the TV — no need to search next time.
 
 #### <img src="docs/readme/step-3.svg" width="28" height="28" align="top" alt="Step 3"> Choose the `.wgt` file
 
@@ -442,7 +448,7 @@ Done once per TV.
 
 #### <img src="docs/readme/step-5.svg" width="28" height="28" align="top" alt="Step 5"> Install
 
-Click **“Install on TV”**. EasyTizen signs a copy of the file, sends it and shows every stage. The app appears under Apps on the TV and, with “Launch after installation” on, opens right away.
+Click **“Install on TV”**. The stages match the real operations: signing a working copy → connecting → upload (real byte progress) → installation (percentage reported by the TV) → checking the result in the TV's app list → launch. “Installed” appears only after the TV confirmed the installation. The working copy is removed from the computer or phone and from the TV — also after an error, a dropped connection or a cancel.
 
 <details>
 <summary><b>If installation fails</b></summary>
@@ -452,9 +458,9 @@ Click **“Install on TV”**. EasyTizen signs a copy of the file, sends it and 
 | Message | What to do |
 |---|---|
 | The TV rejected the signature | The certificate was issued for another TV or has expired. Create a new certificate for this TV |
-| Signed by a different author | The app is already on the TV with someone else's signature. Remove it from the TV (built-in engine: the “Remove the old copy…” button) and retry |
+| Signed by a different author | The app is already on the TV with someone else's signature. Click “Remove the old copy…” under the error — EasyTizen removes it and retries |
 | Not enough space on the TV | Remove unused apps on the TV |
-| The TV stopped answering | Check the network and that the TV did not go to standby, then retry |
+| The TV stopped answering / closed the connection | Check Wi-Fi and that the TV did not go to standby, then retry. No partial file is left on the TV |
 | The TV did not confirm the installation | Look under Apps; open “Technical details” and attach them to a bug report |
 
 The TV's full answer is under the error in “Technical details” and in History.
@@ -492,7 +498,7 @@ Apps → press **1 2 3 4 5** on the remote → switch Developer Mode on → ente
 
 <br>
 
-Search probes the addresses of your subnet (`192.168.x.1–254`) for the open developer port `26101`. A TV is not found when Developer Mode is off, the TV is in deep standby, the devices are on different networks (guest Wi-Fi, client isolation, VPN) or the network is larger than one /24 subnet. In those cases enter the TV's address manually.
+Search stays on your local network and combines three methods: parallel probing of every Wi-Fi/Ethernet network (whole networks up to /22, larger ones within the /24 around your address) for the installation port `26101` and Samsung's service on `8001`; an SSDP query that Samsung TVs answer; and a re-check of saved TVs at their last address. Every candidate is confirmed by a real SDB handshake or Samsung's device service, so unrelated devices are never listed. A TV is not found when it is off or in deep standby, or when the devices are on different networks (guest Wi-Fi, client isolation, VPN, a second router). In those cases enter the TV's address manually.
 
 </details>
 
@@ -555,7 +561,7 @@ Most often because of the certificate (issued for another TV, or expired), a con
 
 <br>
 
-Yes — the Android version is a standalone installer: it speaks SDB to the TV itself, issues certificates and signs packages. One important caveat: so far it has been verified by automated tests and a successful build, not on a real phone with a real TV — see [known limitations](docs/KNOWN-LIMITATIONS.md).
+Yes — the Android version is a standalone installer: the same Rust engine as on desktop finds the TV on Wi-Fi, speaks SDB to it, issues certificates and signs packages. The `.wgt` file is picked with the system file picker (Downloads and cloud folders included). One important caveat: it has been verified by automated tests and an APK build, not on a real phone with a real TV — see [known limitations](docs/KNOWN-LIMITATIONS.md).
 
 </details>
 
@@ -564,7 +570,7 @@ Yes — the Android version is a standalone installer: it speaks SDB to the TV i
 
 <br>
 
-Not if you have Android. The Windows, macOS and Linux versions are an alternative for those who prefer a computer or want Samsung's official tools to do the work.
+Not if you have Android. The Windows, macOS and Linux versions do the same for those who prefer a computer.
 
 </details>
 
@@ -573,8 +579,9 @@ Not if you have Android. The Windows, macOS and Linux versions are an alternativ
 
 <br>
 
-- **Built-in engine:** in the app data folder, `certificates/<name>/author.p12` and `distributor.p12`, encrypted with your password. The password is not saved — EasyTizen remembers it until you close the app and asks again after a restart.
-- **Official Samsung tools:** in the Tizen SDK keystore (`<SDK folder>-data/keystore/samsung/<name>/`); the password is kept by the operating system's secure storage — that is how Samsung's tools work.
+In the app data folder, `certificates/<name>/author.p12` and `distributor.p12`, encrypted with your password. The password is not saved — EasyTizen remembers it until you close the app and asks again after a restart. A valid certificate is reused for every installation on the TVs it was issued for.
+
+Certificates that earlier versions created through the Tizen SDK are kept: the Certificates page marks them “Needs transfer”. Click **“Transfer”** and enter the password — EasyTizen copies them from the Tizen SDK keystore (or Tizen Studio's `~/SamsungCertificate/<name>/`) into its own storage without changing the originals. If the files are not found, import `author.p12` and `distributor.p12` manually.
 
 App data folder: Windows — `%APPDATA%\io.github.volnalabs.easytizen`, macOS — `~/Library/Application Support/io.github.volnalabs.easytizen`, Linux — `~/.local/share/io.github.volnalabs.easytizen`, Android — the app's internal storage, inaccessible to other apps.
 
@@ -608,7 +615,7 @@ The additional checks can be turned off in **Settings → Security → “Additi
 
 <br>
 
-**Settings → Diagnostics → “Copy report”** (or “Save to file”). The report lists the version, system, tool status, saved TVs, certificates and recent installations with errors. It contains no passwords, keys or tokens, and device IDs are shortened. Attach it to a [bug report](https://github.com/volnalabs/TV-Deploy/issues).
+**Settings → Diagnostics → “Copy report”** (or “Save to file”). The report lists the version, system, network interfaces and the Host PC IP address, saved TVs, certificates, recent installations with errors and the end of the log. It contains no passwords, keys or tokens, and device IDs are shortened. The log is kept in the app data folder (`logs/easytizen.log`); on desktop “Open log folder” opens it. Attach it to a [bug report](https://github.com/volnalabs/TV-Deploy/issues).
 
 </details>
 
@@ -617,7 +624,7 @@ The additional checks can be turned off in **Settings → Security → “Additi
 
 <br>
 
-EasyTizen is TV Deploy's new name. On first launch it migrates your settings, saved TVs and certificate profiles. The Tizen SDK and its certificates stay where they are. The old TV Deploy app can be uninstalled.
+EasyTizen is TV Deploy's new name. On first launch it migrates your settings, saved TVs and certificate profiles. The Tizen SDK is no longer needed; remove it once you have transferred your certificates (Certificates → “Transfer”). EasyTizen never deletes anything from the SDK itself.
 
 </details>
 
@@ -633,26 +640,24 @@ EasyTizen is TV Deploy's new name. On first launch it migrates your settings, sa
 <br>
 
 ```
-React/TS interface ──typed commands──▶ src-tauri (Rust) ──▶ easytizen-core
-                                            │
-                  ┌─────────────────────────┴─────────────────────────────┐
-           SDK engine (desktop)                              Built-in engine (everywhere)
-     Node.js + Samsung CLI + Tizen SDK                 own SDB client, WGT signer and
-          sdb · tz · cert-manager                        Samsung CA certificate flow
+React/TS interface ──typed commands──▶ src-tauri (Rust) ──▶ easytizen-core (Rust, everywhere)
+                                                            TV discovery · SDB client · WGT signer
+                                                            Samsung CA certificate flow
 ```
 
+One engine on every platform; the app starts no child processes.
+
 ```
-crates/easytizen-core/   UI-independent core: WGT inspection, SDB client, signing, Samsung CA,
-                         diagnostics, TV emulator for tests
-src-tauri/               Tauri 2 shell: commands, both engines, settings, history
+crates/easytizen-core/   UI-independent core: TV discovery, SDB client, WGT inspection and
+                         signing, Samsung CA, diagnostics, TV emulator for tests
+src-tauri/               Tauri 2 shell: commands, settings, history, log, updates
 src-tauri/gen/android/   Android project (Gradle)
 src/                     interface (React, TypeScript, Tailwind), browser demo backend
-resources/samsung-cli/   pinned copy of Samsung tizen-sdk-skills (Apache-2.0)
-scripts/                 Node.js download, release checks, README artwork generator
+scripts/                 release checks, README artwork generator, guard tests
 docs/                    documentation, screenshots, README artwork
 ```
 
-You need Node.js 22 and Rust stable; for desktop the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/), for Android JDK 21, Android SDK (platform 36, build-tools 35) and NDK 27.
+Building from source (not needed to use a release) takes Node.js 22 and Rust stable; for desktop the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/), for Android JDK 21, Android SDK (platform 36, build-tools 35) and NDK 27.
 
 ```sh
 npm ci
@@ -665,11 +670,10 @@ npm run typecheck
 # Interface in a browser with an emulated TV (no Rust needed)
 npm run dev            # http://localhost:1420 · ?platform=android · ?demo=fresh · ?update=available · ?checks=off|fail
 
-# TV emulator for the built-in engine
+# TV emulator (SDB on 26101 and Samsung's device service on 8001 — found by the search)
 cargo run -p easytizen-core --example mock_tv --features mock-tv -- 0.0.0.0 26101
 
 # Desktop
-node scripts/fetch-node.mjs linux-x64     # win-x64 | darwin-arm64 | darwin-x64
 npx tauri dev
 npx tauri build --bundles appimage,deb    # nsis | dmg
 
@@ -693,25 +697,24 @@ More: [architecture](docs/ARCHITECTURE.md) · [design system](docs/DESIGN-SYSTEM
 
 | Component | Used in | License |
 |---|---|---|
-| [Samsung tizen-sdk-skills](https://github.com/Samsung/tizen-agent-skills) (CLI and Samsung VD CA certificates) | desktop builds; the CA certificates everywhere | Apache-2.0, see [`LICENSE`](resources/samsung-cli/LICENSE) and [`NOTICE`](resources/samsung-cli/NOTICE) |
-| [Node.js](https://nodejs.org/) 22 | desktop builds (runs the Samsung CLI) | MIT |
+| Public Samsung VD CA certificates from [Samsung tizen-agent-skills](https://github.com/Samsung/tizen-agent-skills) | embedded into the user's certificates | Apache-2.0, see [`LICENSE`](crates/easytizen-core/assets/samsung-tv-ca/LICENSE) and [`NOTICE`](crates/easytizen-core/assets/samsung-tv-ca/NOTICE) |
 | [Tauri](https://tauri.app/) 2 with the dialog, fs and opener plugins | application shell | MIT / Apache-2.0 |
 | [React](https://react.dev/), [lucide](https://lucide.dev/), [Tailwind CSS](https://tailwindcss.com/) | interface | MIT / ISC |
-| RustCrypto (`rsa`, `sha2`, `x509-cert`), `p12-keystore`, `ureq`, `rustls`, `zip`, `roxmltree` | core | MIT / Apache-2.0 |
+| RustCrypto (`rsa`, `sha2`, `x509-cert`), `p12-keystore`, `ureq`, `rustls`, `zip`, `roxmltree`, `if-addrs`, `socket2` | core | MIT / Apache-2.0 / BSD-3-Clause |
 
-The Tizen SDK is not bundled: with the official tools selected, Samsung's installer downloads it from the Tizen servers under Samsung's terms. Full list: [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
+The Tizen SDK is neither used nor downloaded. Full list: [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 
-**What is stored on your device.** Settings, the TV list (address, name, DUID), certificate metadata and the installation history — in the app data folder. Certificates — as encrypted `.p12` files. EasyTizen never writes certificate passwords or the Samsung token to disk. With the official tools selected, Samsung's own tooling keeps the certificate password in the operating system's secure storage.
+**What is stored on your device.** Settings, the TV list (address, name, model, DUID), certificate metadata, the installation history and the log — in the app data folder. Certificates — as encrypted `.p12` files. EasyTizen never writes certificate passwords or the Samsung token to disk; secrets never reach the log or the history.
 
 **Where the app connects**
 
 | Address | When | What is sent |
 |---|---|---|
 | Your TV, port `26101`, local network | search, connection, installation | SDB commands and your package |
-| Addresses of your subnet, port `26101` | only when you press “Find TVs” | a TCP connection attempt |
+| Your TV, port `8001`, local network | search and connection check | a device-information request (model, Developer Mode, Host PC IP) |
+| Addresses of your local network, ports `26101` and `8001`; SSDP `239.255.255.250:1900` | only when you press “Find TVs” | a TCP connection attempt; an M-SEARCH query |
 | `account.samsung.com` (in your browser) | creating a certificate | you sign in yourself on Samsung's site |
 | `svdca.samsungqbe.com` | creating a certificate | the certificate request (public key, author name, DUID) and the Samsung token |
 | `api.github.com`, `github.com` and GitHub's file storage | checking for and downloading updates (can be disabled) | nothing beyond a standard request |
-| `download.tizen.org` and mirrors | Tizen SDK installation (desktop) | performed by Samsung's installer |
 
 EasyTizen has no servers of its own, no analytics and no telemetry.

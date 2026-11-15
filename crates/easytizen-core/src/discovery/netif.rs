@@ -191,7 +191,23 @@ pub fn local_interfaces() -> Vec<LocalInterface> {
         .collect();
     list.sort_by_key(|i| (!i.primary, !i.kind.is_lan(), u32::from(i.ip)));
     list.dedup_by(|a, b| a.ip == b.ip);
-    list
+    with_fallback(list, primary)
+}
+
+/// When the OS does not list interfaces (restricted platforms), the default-route address is
+/// still known: treat it as a /24 LAN so the search keeps working instead of reporting no network.
+fn with_fallback(list: Vec<LocalInterface>, primary: Option<Ipv4Addr>) -> Vec<LocalInterface> {
+    match primary {
+        Some(ip) if list.is_empty() => vec![LocalInterface {
+            name: "default".into(),
+            ip,
+            prefix_len: 24,
+            kind: InterfaceKind::Other,
+            primary: true,
+            private: ip.is_private(),
+        }],
+        _ => list,
+    }
 }
 
 /// Addresses to sweep on one interface. Networks up to /22 (1022 hosts) are swept whole;
@@ -302,6 +318,16 @@ mod tests {
         assert!(sweep_targets(&iface([172, 17, 0, 1], 16, InterfaceKind::Virtual)).is_empty());
         assert!(sweep_targets(&iface([10, 64, 1, 2], 24, InterfaceKind::Mobile)).is_empty());
         assert!(sweep_targets(&iface([192, 168, 1, 2], 32, InterfaceKind::Wifi)).is_empty());
+    }
+
+    #[test]
+    fn default_route_fallback() {
+        let ip = Ipv4Addr::new(192, 168, 0, 14);
+        let list = with_fallback(vec![], Some(ip));
+        assert_eq!(list.len(), 1);
+        assert!(list[0].scannable());
+        assert_eq!(sweep_targets(&list[0]).len(), 253);
+        assert!(with_fallback(vec![], None).is_empty());
     }
 
     #[test]
